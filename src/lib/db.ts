@@ -9,7 +9,7 @@
  */
 
 import { supabase } from './supabase'
-import type { Venue, MenuItem, Participant } from '../types/entities'
+import type { Venue, MenuItem, Tab, Participant, Item, ItemSplit } from '../types/entities'
 
 // ─── Venues ───────────────────────────────────────────────────────────────────
 
@@ -53,6 +53,45 @@ export async function upsertVenue(name: string): Promise<Venue | null> {
   return data
 }
 
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Persist a tab record to Supabase.
+ * Called once from TabContext after the Supabase venue ID has been resolved.
+ * Uses the client-generated tab.id as the PK so the URL slug stays stable.
+ * supabaseVenueId is passed separately because tab.venue_id is a local placeholder.
+ */
+export async function upsertTab(tab: Tab, supabaseVenueId: string): Promise<void> {
+  const { error } = await supabase
+    .from('tabs')
+    .upsert({
+      id: tab.id,
+      venue_id: supabaseVenueId,
+      name: tab.name,
+      tip_percent: tab.tip_percent,
+      status: tab.status,
+      mode: tab.mode,
+      creator_token: tab.creator_token,
+      created_at: tab.created_at,
+    }, { onConflict: 'id' })
+  if (error) console.error('upsertTab:', error)
+}
+
+/**
+ * Update mutable tab fields — tip percentage or lock status.
+ * Only the creator should call this (enforced in TabContext via isCreator guard).
+ */
+export async function updateTab(
+  tabId: string,
+  patch: { tip_percent?: number; status?: string },
+): Promise<void> {
+  const { error } = await supabase
+    .from('tabs')
+    .update(patch)
+    .eq('id', tabId)
+  if (error) console.error('updateTab:', error)
+}
+
 // ─── Participants ─────────────────────────────────────────────────────────────
 
 /**
@@ -76,8 +115,7 @@ export async function upsertParticipant(participant: Participant): Promise<void>
 /**
  * Update only the avatar_id for a participant.
  * Lightweight write — called immediately when a user picks an avatar.
- * All connected devices will pick this up via the realtime subscription
- * once that is implemented.
+ * Propagates to all connected devices via the realtime subscription.
  */
 export async function updateParticipantAvatar(
   participantId: string,
@@ -88,6 +126,145 @@ export async function updateParticipantAvatar(
     .update({ avatar_id: avatarId })
     .eq('id', participantId)
   if (error) console.error('updateParticipantAvatar:', error)
+}
+
+// ─── Items ────────────────────────────────────────────────────────────────────
+
+/**
+ * Upsert a line item.
+ * Called on addItem and updateItem — handles both insert and name/price edits.
+ */
+export async function upsertItem(item: Item): Promise<void> {
+  const { error } = await supabase
+    .from('items')
+    .upsert({
+      id: item.id,
+      tab_id: item.tab_id,
+      name: item.name,
+      total_price: item.total_price,
+      created_at: item.created_at,
+    }, { onConflict: 'id' })
+  if (error) console.error('upsertItem:', error)
+}
+
+/**
+ * Delete a line item.
+ * The FK cascade on item_splits means all splits for this item are deleted too.
+ */
+export async function deleteItem(itemId: string): Promise<void> {
+  const { error } = await supabase
+    .from('items')
+    .delete()
+    .eq('id', itemId)
+  if (error) console.error('deleteItem:', error)
+}
+
+// ─── Item splits ──────────────────────────────────────────────────────────────
+
+/**
+ * Upsert a split record.
+ * The unique constraint on (item_id, participant_id) means re-assigning
+ * the same person updates their shares rather than creating a duplicate row.
+ */
+export async function upsertSplit(split: ItemSplit): Promise<void> {
+  const { error } = await supabase
+    .from('item_splits')
+    .upsert({
+      id: split.id,
+      item_id: split.item_id,
+      participant_id: split.participant_id,
+      shares: split.shares,
+    }, { onConflict: 'item_id,participant_id' })
+  if (error) console.error('upsertSplit:', error)
+}
+
+/**
+ * Delete a split by item + participant pair.
+ */
+export async function deleteSplit(itemId: string, participantId: string): Promise<void> {
+  const { error } = await supabase
+    .from('item_splits')
+    .delete()
+    .eq('item_id', itemId)
+    .eq('participant_id', participantId)
+  if (error) console.error('deleteSplit:', error)
+}
+
+// ─── Bootstrap ───────────────────────────────────────────────────────────────
+
+/**
+ * Full state fetch for a tab — used when a device opens a tab URL cold
+ * (no localStorage state) and needs to hydrate from Supabase.
+ *
+ * Returns null if the tab doesn't exist in the DB yet (e.g. the creator
+ * is still on a poor connection and the write hasn't landed).
+ */
+export async function fetchTabState(tabId: string): Promise<{
+  tab: Tab
+  venue: Venue
+  participants: Participant[]
+  items: Item[]
+  splits: ItemSplit[]
+} | null> {
+  // Fetch tab + venue in one query via PostgREST embedding
+  const { data: tabRow, error: tabErr } = await supabase
+    .from('tabs')
+    .select('id, venue_id, name, tip_percent, status, mode, creator_token, created_at, venues(id, name, created_at)')
+    .eq('id', tabId)
+    .maybeSingle()
+  if (tabErr) { console.error('fetchTabState/tab:', tabErr); return null }
+  if (!tabRow) return null
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const venueRow = (tabRow as any).venues as Venue
+  const tab: Tab = {
+    id: tabRow.id,
+    venue_id: tabRow.venue_id,
+    name: tabRow.name,
+    tip_percent: Number(tabRow.tip_percent),
+    status: tabRow.status,
+    mode: tabRow.mode,
+    creator_token: tabRow.creator_token,
+    created_at: tabRow.created_at,
+  }
+
+  // Fetch participants
+  const { data: participantRows, error: pErr } = await supabase
+    .from('participants')
+    .select('id, tab_id, name, avatar_id, created_at')
+    .eq('tab_id', tabId)
+    .order('created_at')
+  if (pErr) console.error('fetchTabState/participants:', pErr)
+  const participants: Participant[] = (participantRows ?? []).map(p => ({
+    ...p,
+    avatar_id: p.avatar_id ?? undefined,
+  }))
+
+  // Fetch items
+  const { data: itemRows, error: iErr } = await supabase
+    .from('items')
+    .select('id, tab_id, name, total_price, created_at')
+    .eq('tab_id', tabId)
+    .order('created_at')
+  if (iErr) console.error('fetchTabState/items:', iErr)
+  const items: Item[] = (itemRows ?? []).map(i => ({
+    ...i,
+    total_price: Number(i.total_price),
+  }))
+
+  // Fetch splits for all items in this tab
+  let splits: ItemSplit[] = []
+  if (items.length > 0) {
+    const itemIds = items.map(i => i.id)
+    const { data: splitRows, error: sErr } = await supabase
+      .from('item_splits')
+      .select('id, item_id, participant_id, shares')
+      .in('item_id', itemIds)
+    if (sErr) console.error('fetchTabState/splits:', sErr)
+    splits = splitRows ?? []
+  }
+
+  return { tab, venue: venueRow, participants, items, splits }
 }
 
 // ─── Menu items ───────────────────────────────────────────────────────────────

@@ -9,11 +9,22 @@ import BillModal from '../components/BillModal'
 
 export default function Tab() {
   const { id } = useParams()
-  const { tab, venue, participants, items, splits } = useTab()
+  const { tab, venue, participants, items, splits, isLoadingRemote } = useTab()
   const [showBill, setShowBill] = useState(false)
 
   if (!tab || !venue) {
-    return <div style={{ padding: '2rem', color: '#999', fontFamily: 'system-ui' }}>Loading tab {id}…</div>
+    if (isLoadingRemote) {
+      return <div style={{ padding: '2rem', color: '#999', fontFamily: 'system-ui' }}>Loading tab…</div>
+    }
+    return (
+      <div style={{ padding: '2rem', fontFamily: 'system-ui' }}>
+        <p style={{ color: '#999', marginBottom: '1rem' }}>Tab not found.</p>
+        <p style={{ color: '#bbb', fontSize: '0.85rem' }}>
+          This tab may not exist yet — ask the creator to share the link again once the tab is set up.
+        </p>
+        <Link to="/" style={{ fontSize: '0.85rem', color: '#888' }}>← Start a new tab</Link>
+      </div>
+    )
   }
 
   const summary = buildTabSummary(tab, venue, participants, items, splits)

@@ -2,12 +2,18 @@
  * TabContext.tsx
  *
  * Local state management for a single tab.
- * This is the data layer for the prototype — everything here will eventually
- * be replaced by Supabase calls, but the shape of the API stays the same.
+ * Local state is the source of truth for the current device — mutations update
+ * it immediately (no loading spinners) and also write to Supabase fire-and-forget.
  *
- * Key design: all mutation functions (addParticipant, addItem, etc.) live here.
- * Components never mutate state directly — they call these functions.
- * This mirrors how a real data layer works and makes the Supabase swap clean.
+ * Realtime sync:
+ *   A single Supabase channel subscribes to postgres_changes on items,
+ *   item_splits, participants, and tabs filtered to this tab.  Incoming events
+ *   patch local state; writes that originated from this device are deduplicated
+ *   by checking whether the record ID is already present in local state.
+ *
+ * Cold-load (second device opening the URL):
+ *   If no localStorage state exists for this tab ID, fetchTabState() hydrates
+ *   from Supabase before the subscription starts.
  */
 
 import {
@@ -16,10 +22,16 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react'
 import type { Item, ItemSplit, Participant, Tab, Venue } from '../types/entities'
-import { upsertMenuItem, deleteMenuItem, upsertParticipant, updateParticipantAvatar } from '../lib/db'
+import {
+  upsertMenuItem, deleteMenuItem, upsertParticipant, updateParticipantAvatar,
+  upsertTab, updateTab, upsertItem, deleteItem, upsertSplit, deleteSplit,
+  fetchTabState,
+} from '../lib/db'
+import { supabase } from '../lib/supabase'
 import { generateId } from '../lib/utils'
 
 // ─── Inventory item ───────────────────────────────────────────────────────────
@@ -58,6 +70,13 @@ type TabState = {
 type TabContextValue = TabState & {
   // Is the current user the creator of this tab?
   isCreator: boolean
+
+  // True while bootstrapping state from Supabase (cold device load)
+  isLoadingRemote: boolean
+
+  // Most recently received item from another device — watched by TableTabView
+  // to fire the fun toast. Not persisted to localStorage.
+  lastForeignItem: Item | null
 
   // Create a brand new tab — called from the Home screen
   createTab: (venueName: string, tabName: string, tipPercent: number, mode: 'pub' | 'restaurant') => string
@@ -145,6 +164,11 @@ function loadState(): TabState | null {
   try { return JSON.parse(saved) as TabState } catch { return null }
 }
 
+function getUrlTabId(): string | null {
+  const match = window.location.pathname.match(/\/tab\/([^/]+)/)
+  return match ? match[1] : null
+}
+
 const EMPTY_STATE: TabState = {
   tab: null, venue: null, participants: [], items: [], splits: [],
   inventoryItems: [], supabaseVenueId: null, inventoryLoaded: false,
@@ -157,10 +181,190 @@ const TabContext = createContext<TabContextValue | null>(null)
 export function TabProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<TabState>(() => loadState() ?? EMPTY_STATE)
 
+  // Not persisted — just for triggering the fun toast on other devices
+  const [lastForeignItem, setLastForeignItem] = useState<Item | null>(null)
+
+  // True while doing the initial remote fetch on a cold device
+  const [isLoadingRemote, setIsLoadingRemote] = useState<boolean>(() => {
+    const tabId = getUrlTabId()
+    return !!tabId && !loadState()
+  })
+
   const isCreator = state.tab ? isCreatorOfTab(state.tab) : false
 
   // Persist state on every change so page refresh restores the session
   useEffect(() => { saveState(state) }, [state])
+
+  // ── Cold-load bootstrap ────────────────────────────────────────────────────
+  // When a second device opens the tab URL, localStorage is empty.
+  // Fetch the full tab state from Supabase once, then let realtime take over.
+
+  useEffect(() => {
+    if (!isLoadingRemote) return
+    const tabId = getUrlTabId()
+    if (!tabId) { setIsLoadingRemote(false); return }
+
+    fetchTabState(tabId).then(remote => {
+      if (remote) {
+        setState({
+          tab: remote.tab,
+          venue: remote.venue,
+          participants: remote.participants,
+          items: remote.items,
+          splits: remote.splits,
+          inventoryItems: [],          // inventory is session-only; fetched from menu on mount
+          supabaseVenueId: remote.tab.venue_id,  // DB venue_id IS the Supabase ID
+          inventoryLoaded: false,
+        })
+      }
+      setIsLoadingRemote(false)
+    })
+  // Run once on mount only
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── Realtime subscription ──────────────────────────────────────────────────
+  // One channel per tab, subscribing to all four relevant tables.
+  // item_splits has no tab_id column so we filter client-side by known item IDs.
+  //
+  // Deduplication: on INSERT, skip if the ID is already in local state.
+  // This prevents our own fire-and-forget writes from being applied twice.
+  //
+  // stateRef lets the stable channel callbacks read current state without
+  // needing to be recreated whenever state changes.
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const stateRef = useRef(state)
+  useEffect(() => { stateRef.current = state }, [state])
+
+  useEffect(() => {
+    const tabId = state.tab?.id
+    if (!tabId) return
+
+    const channel = supabase
+      .channel(`tab-${tabId}`)
+
+      // ── items ──────────────────────────────────────────────────────────────
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'items', filter: `tab_id=eq.${tabId}` },
+        payload => {
+          const row = payload.new as Item & { total_price: string | number }
+          setState(s => {
+            if (s.items.some(i => i.id === row.id)) return s   // already have it (our own write)
+            const newItem: Item = { ...row, total_price: Number(row.total_price) }
+            setLastForeignItem(newItem)   // triggers fun toast in TableTabView
+            return { ...s, items: [...s.items, newItem] }
+          })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'items', filter: `tab_id=eq.${tabId}` },
+        payload => {
+          const row = payload.new as Item & { total_price: string | number }
+          setState(s => ({
+            ...s,
+            items: s.items.map(i =>
+              i.id === row.id ? { ...row, total_price: Number(row.total_price) } : i
+            ),
+          }))
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'items', filter: `tab_id=eq.${tabId}` },
+        payload => {
+          const id = (payload.old as { id: string }).id
+          setState(s => ({
+            ...s,
+            items: s.items.filter(i => i.id !== id),
+            splits: s.splits.filter(sp => sp.item_id !== id),
+          }))
+        },
+      )
+
+      // ── item_splits ────────────────────────────────────────────────────────
+      // No tab_id column — filter client-side using known item IDs.
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'item_splits' },
+        payload => {
+          const row = payload.new as ItemSplit
+          setState(s => {
+            if (!s.items.some(i => i.id === row.item_id)) return s  // not our tab
+            if (s.splits.some(sp => sp.id === row.id)) return s      // already have it
+            return { ...s, splits: [...s.splits, row] }
+          })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'item_splits' },
+        payload => {
+          const row = payload.new as ItemSplit
+          setState(s => {
+            if (!s.items.some(i => i.id === row.item_id)) return s
+            return { ...s, splits: s.splits.map(sp => sp.id === row.id ? row : sp) }
+          })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'item_splits' },
+        payload => {
+          // Only PK guaranteed in DELETE without REPLICA IDENTITY FULL
+          const id = (payload.old as { id: string }).id
+          setState(s => ({ ...s, splits: s.splits.filter(sp => sp.id !== id) }))
+        },
+      )
+
+      // ── participants ───────────────────────────────────────────────────────
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'participants', filter: `tab_id=eq.${tabId}` },
+        payload => {
+          const row = payload.new as Participant
+          setState(s => {
+            if (s.participants.some(p => p.id === row.id)) return s
+            return {
+              ...s,
+              participants: [...s.participants, { ...row, avatar_id: row.avatar_id ?? undefined }],
+            }
+          })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'participants', filter: `tab_id=eq.${tabId}` },
+        payload => {
+          const row = payload.new as Participant
+          setState(s => ({
+            ...s,
+            participants: s.participants.map(p =>
+              p.id === row.id ? { ...row, avatar_id: row.avatar_id ?? undefined } : p
+            ),
+          }))
+        },
+      )
+
+      // ── tabs ───────────────────────────────────────────────────────────────
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'tabs', filter: `id=eq.${tabId}` },
+        payload => {
+          const row = payload.new as Tab & { tip_percent: string | number }
+          setState(s => s.tab
+            ? { ...s, tab: { ...s.tab, tip_percent: Number(row.tip_percent), status: row.status } }
+            : s
+          )
+        },
+      )
+
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [state.tab?.id])
 
   // ── createTab ──────────────────────────────────────────────────────────────
 
@@ -217,7 +421,6 @@ export function TabProvider({ children }: { children: ReactNode }) {
       created_at: new Date().toISOString(),
     }
     setState(s => ({ ...s, participants: [...s.participants, participant] }))
-    // Write to Supabase so the row exists for avatar updates and future realtime sync
     upsertParticipant(participant)
     return participant
   }, [state.tab])
@@ -233,7 +436,6 @@ export function TabProvider({ children }: { children: ReactNode }) {
           : p
       ),
     }))
-    // Persist to Supabase — when realtime lands, this update propagates to all devices
     updateParticipantAvatar(participantId, avatarId)
   }, [])
 
@@ -248,9 +450,8 @@ export function TabProvider({ children }: { children: ReactNode }) {
       created_at: new Date().toISOString(),
     }
     setState(s => ({ ...s, items: [...s.items, item] }))
-    // Fire-and-forget upsert — must live OUTSIDE setState because React can
-    // call updater functions multiple times (StrictMode) or defer them,
-    // making async side-effects inside updaters unreliable.
+    // Both writes happen outside setState — async side effects must not live in updaters
+    upsertItem(item)
     if (state.supabaseVenueId) {
       upsertMenuItem(state.supabaseVenueId, name.trim(), totalPrice, emoji)
     }
@@ -274,6 +475,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
         participant_id: participantId,
         shares,
       }
+      upsertSplit(newSplit)
       return { ...s, splits: [...filtered, newSplit] }
     })
   }, [])
@@ -287,6 +489,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
         sp => !(sp.item_id === itemId && sp.participant_id === participantId)
       ),
     }))
+    deleteSplit(itemId, participantId)
   }, [])
 
   // ── addInventoryItem ───────────────────────────────────────────────────────
@@ -309,7 +512,6 @@ export function TabProvider({ children }: { children: ReactNode }) {
     id: string,
     patch: Partial<Pick<InventoryItem, 'name' | 'unitPrice' | 'emoji' | 'type'>>,
   ) => {
-    // Read originals from closure so we can match already-assigned items below
     const original = state.inventoryItems.find(inv => inv.id === id)
     if (!original) return
     const updated = { ...original, ...patch }
@@ -317,8 +519,6 @@ export function TabProvider({ children }: { children: ReactNode }) {
     setState(s => ({
       ...s,
       inventoryItems: s.inventoryItems.map(inv => inv.id === id ? updated : inv),
-      // Propagate name/price changes to already-committed tab lines so the
-      // running summary stays in sync without requiring a re-assignment.
       items: s.items.map(item =>
         item.name === original.name && item.total_price === original.unitPrice
           ? { ...item, name: updated.name, total_price: updated.unitPrice }
@@ -326,7 +526,6 @@ export function TabProvider({ children }: { children: ReactNode }) {
       ),
     }))
 
-    // Persist outside setState — async side effects must not live in updaters
     if (state.supabaseVenueId) {
       upsertMenuItem(state.supabaseVenueId, updated.name, updated.unitPrice, updated.emoji, updated.type)
     }
@@ -338,7 +537,6 @@ export function TabProvider({ children }: { children: ReactNode }) {
     const item = state.inventoryItems.find(inv => inv.id === id)
     if (!item) return
     setState(s => ({ ...s, inventoryItems: s.inventoryItems.filter(inv => inv.id !== id) }))
-    // Delete from Supabase menu (fire-and-forget)
     if (state.supabaseVenueId) {
       deleteMenuItem(state.supabaseVenueId, item.name)
     }
@@ -350,13 +548,13 @@ export function TabProvider({ children }: { children: ReactNode }) {
     id: string,
     patch: Partial<Pick<Item, 'name' | 'total_price'>>,
   ) => {
+    const existing = state.items.find(i => i.id === id)
+    if (existing) upsertItem({ ...existing, ...patch })
     setState(s => ({
       ...s,
-      items: s.items.map(item =>
-        item.id === id ? { ...item, ...patch } : item
-      ),
+      items: s.items.map(item => item.id === id ? { ...item, ...patch } : item),
     }))
-  }, [])
+  }, [state.items])
 
   // ── removeItem ────────────────────────────────────────────────────────────
 
@@ -366,13 +564,18 @@ export function TabProvider({ children }: { children: ReactNode }) {
       items: s.items.filter(item => item.id !== id),
       splits: s.splits.filter(sp => sp.item_id !== id),
     }))
+    deleteItem(id)   // FK cascade removes splits in DB too
   }, [])
 
   // ── setSupabaseVenueId ─────────────────────────────────────────────────────
+  // Called from Home once upsertVenue resolves.
+  // Also triggers the tab write to Supabase — now we have the real venue ID.
 
   const setSupabaseVenueId = useCallback((id: string) => {
+    // upsertTab must live outside setState — updaters can run multiple times in StrictMode
+    if (state.tab) upsertTab(state.tab, id)
     setState(s => ({ ...s, supabaseVenueId: id }))
-  }, [])
+  }, [state.tab])
 
   // ── markInventoryLoaded ────────────────────────────────────────────────────
 
@@ -383,25 +586,23 @@ export function TabProvider({ children }: { children: ReactNode }) {
   // ── setTipPercent (creator only) ──────────────────────────────────────────
 
   const setTipPercent = useCallback((percent: number) => {
-    setState(s => s.tab
-      ? { ...s, tab: { ...s.tab, tip_percent: percent } }
-      : s
-    )
-  }, [])
+    if (state.tab) updateTab(state.tab.id, { tip_percent: percent })
+    setState(s => s.tab ? { ...s, tab: { ...s.tab, tip_percent: percent } } : s)
+  }, [state.tab])
 
   // ── lockTab (creator only) ────────────────────────────────────────────────
 
   const lockTab = useCallback(() => {
-    setState(s => s.tab
-      ? { ...s, tab: { ...s.tab, status: 'locked' } }
-      : s
-    )
-  }, [])
+    if (state.tab) updateTab(state.tab.id, { status: 'locked' })
+    setState(s => s.tab ? { ...s, tab: { ...s.tab, status: 'locked' } } : s)
+  }, [state.tab])
 
   return (
     <TabContext.Provider value={{
       ...state,
       isCreator,
+      isLoadingRemote,
+      lastForeignItem,
       createTab,
       addParticipant,
       setParticipantAvatar,

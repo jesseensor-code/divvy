@@ -675,7 +675,7 @@ const THREE_ROWS_PX = 120
 export default function TableTabView() {
   const { tab, venue, participants, items, splits, inventoryItems, supabaseVenueId,
           inventoryLoaded, markInventoryLoaded,
-          addInventoryItem, addItem, setSplit } = useTab()
+          addInventoryItem, addItem, setSplit, lastForeignItem } = useTab()
 
   // Per-participant item count — shown under each person's name
   const itemCountByParticipant: Record<string, number> = {}
@@ -736,6 +736,15 @@ export default function TableTabView() {
     setHasOverflow(el.scrollHeight > THREE_ROWS_PX + 16)
   }, [inventoryItems])
 
+  // Fire fun toast when another device adds an item.
+  // lastForeignItem is set by the realtime handler in TabContext and is never
+  // persisted, so it only triggers once per foreign insert.
+  useEffect(() => {
+    if (!lastForeignItem) return
+    // Show toast near the centre of the table
+    addToast(funToast(lastForeignItem.name), SVG_W / 2, CY)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastForeignItem])
 
   // Get the SVG-space seat position for a participant
   function getSeatPos(participantId: string) {
