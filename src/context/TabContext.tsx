@@ -14,6 +14,7 @@ import {
   createContext,
   useContext,
   useState,
+  useEffect,
   useCallback,
   type ReactNode,
 } from 'react'
@@ -113,23 +114,43 @@ function isCreatorOfTab(tab: Tab): boolean {
   return getCreatorToken(tab.id) === tab.creator_token
 }
 
+// ─── State persistence ────────────────────────────────────────────────────────
+// Saves the full tab state to localStorage on every change so a page refresh
+// on an active tab restores exactly where the user left off.
+// Key is per-tab so multiple tabs don't collide (future-proofing).
+
+const STATE_KEY = (tabId: string) => `divvy_state_${tabId}`
+
+function saveState(state: TabState) {
+  if (!state.tab) return
+  localStorage.setItem(STATE_KEY(state.tab.id), JSON.stringify(state))
+}
+
+function loadState(): TabState | null {
+  // Extract the tab ID from the current URL path (/tab/:id)
+  const match = window.location.pathname.match(/\/tab\/([^/]+)/)
+  if (!match) return null
+  const saved = localStorage.getItem(STATE_KEY(match[1]))
+  if (!saved) return null
+  try { return JSON.parse(saved) as TabState } catch { return null }
+}
+
+const EMPTY_STATE: TabState = {
+  tab: null, venue: null, participants: [], items: [], splits: [],
+  inventoryItems: [], supabaseVenueId: null, inventoryLoaded: false,
+}
+
 // ─── Context ─────────────────────────────────────────────────────────────────
 
 const TabContext = createContext<TabContextValue | null>(null)
 
 export function TabProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<TabState>({
-    tab: null,
-    venue: null,
-    participants: [],
-    items: [],
-    splits: [],
-    inventoryItems: [],
-    supabaseVenueId: null,
-    inventoryLoaded: false,
-  })
+  const [state, setState] = useState<TabState>(() => loadState() ?? EMPTY_STATE)
 
   const isCreator = state.tab ? isCreatorOfTab(state.tab) : false
+
+  // Persist state on every change so page refresh restores the session
+  useEffect(() => { saveState(state) }, [state])
 
   // ── createTab ──────────────────────────────────────────────────────────────
 
