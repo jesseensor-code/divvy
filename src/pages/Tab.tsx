@@ -1,13 +1,16 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useTab } from '../context/TabContext'
 import { buildTabSummary } from '../lib/calculations'
 import { formatRands } from '../lib/currency'
 import TabSummaryBar from '../components/TabSummaryBar'
 import TableTabView from '../components/TableTabView'
+import BillModal from '../components/BillModal'
 
 export default function Tab() {
   const { id } = useParams()
   const { tab, venue, participants, items, splits } = useTab()
+  const [showBill, setShowBill] = useState(false)
 
   if (!tab || !venue) {
     return <div style={{ padding: '2rem', color: '#999', fontFamily: 'system-ui' }}>Loading tab {id}…</div>
@@ -69,6 +72,7 @@ export default function Tab() {
           <div style={s.totalStrip}>
             <span style={s.totalLabel}>Total</span>
             <span style={s.totalAmount}>{formatRands(summary.grand_total)}</span>
+            <button style={s.billBtn} onClick={() => setShowBill(true)}>Preview bill</button>
             <Link to={`/tab/${id}/items`} style={s.editTabLink}>Edit tab</Link>
             <span style={s.scrollHint}>↓ breakdown</span>
           </div>
@@ -78,6 +82,11 @@ export default function Tab() {
       {/* ── Full breakdown ───────────────────────────────────────────────────
           Below the fold. Scroll down to see per-person totals.            */}
       <TabSummaryBar summary={summary} />
+
+      {/* ── Bill preview modal ───────────────────────────────────────────── */}
+      {showBill && (
+        <BillModal summary={summary} onClose={() => setShowBill(false)} />
+      )}
 
     </div>
   )
@@ -152,5 +161,12 @@ const s: Record<string, React.CSSProperties> = {
   editTabLink: {
     fontSize: '0.7rem', fontWeight: 600,
     color: '#bbb', textDecoration: 'none',
+  },
+  billBtn: {
+    background: 'none', border: '1.5px solid #e8e8e8',
+    borderRadius: 99, padding: '0 9px', height: 26,
+    fontSize: '0.7rem', fontWeight: 600, color: '#555',
+    cursor: 'pointer', whiteSpace: 'nowrap' as const,
+    flexShrink: 0,
   },
 }
