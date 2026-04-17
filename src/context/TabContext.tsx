@@ -492,17 +492,22 @@ export function TabProvider({ children }: { children: ReactNode }) {
     participantId: string,
     shares: number,
   ) => {
+    // newSplit and upsertSplit must live OUTSIDE setState — the updater runs
+    // twice in StrictMode, which would generate two different IDs and fire two
+    // DB writes. The first INSERT would then arrive via realtime and be treated
+    // as a foreign split (its ID isn't in local state), doubling total_shares
+    // and halving everyone's calculated amount.
+    const newSplit: ItemSplit = {
+      id: generateId(),
+      item_id: itemId,
+      participant_id: participantId,
+      shares,
+    }
+    upsertSplit(newSplit)
     setState(s => {
       const filtered = s.splits.filter(
         sp => !(sp.item_id === itemId && sp.participant_id === participantId)
       )
-      const newSplit: ItemSplit = {
-        id: generateId(),
-        item_id: itemId,
-        participant_id: participantId,
-        shares,
-      }
-      upsertSplit(newSplit)
       return { ...s, splits: [...filtered, newSplit] }
     })
   }, [])
