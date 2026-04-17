@@ -26,12 +26,12 @@ import type { Participant } from '../types/entities'
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 const TABLE_W = 320
-const TABLE_H = 320
-const CX = TABLE_W / 2
-const CY = TABLE_H / 2 + 10
+const TABLE_H = 380      // extra height so labels below bottom seats don't clip
+const CX = TABLE_W / 2  // 160
+const CY = 162           // table centre — shifted up to give room below for labels
 const SEAT_RADIUS = 122
-const TABLE_RX = 72
-const TABLE_RY = 44
+const TABLE_RX = 80      // slightly wider table
+const TABLE_RY = 50      // slightly taller table
 
 // ─── Fun toasts ───────────────────────────────────────────────────────────────
 
@@ -97,15 +97,21 @@ function avatarUrl(avatarId: number) {
 
 // ─── SVG person icon ──────────────────────────────────────────────────────────
 
-function PersonIcon({ x, y, name, highlighted, isDropTarget, avatarId, participantId }: {
+const AVATAR_R = 24   // radius in SVG units — 48 px diameter at 1:1 scale
+
+function PersonIcon({ x, y, name, highlighted, isDropTarget, avatarId, participantId, itemCount }: {
   x: number; y: number; name: string
   highlighted: boolean; isDropTarget: boolean
   avatarId?: number; participantId: string
+  itemCount: number
 }) {
   const clipId = `av-clip-${participantId}`
-  const AVATAR_R = 16   // radius of the avatar circle in SVG units
   const cx = x
-  const cy = y - 8      // vertically centres the avatar in the same footprint
+  const cy = y - 10    // avatar/head centre; shifted up so name sits below with room
+
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
+  }
 
   if (avatarId) {
     return (
@@ -130,54 +136,70 @@ function PersonIcon({ x, y, name, highlighted, isDropTarget, avatarId, participa
         {/* Highlight ring when selected for share or is drop target */}
         {(highlighted || isDropTarget) && (
           <circle cx={cx} cy={cy} r={AVATAR_R} fill="none"
-            stroke="#1a1a1a" strokeWidth={2} />
+            stroke="#1a1a1a" strokeWidth={2.5} />
         )}
         {/* Name */}
-        <text x={x} y={y + 26} textAnchor="middle"
-          style={{ fontSize: '10px', fontWeight: 600, fontFamily: 'system-ui, sans-serif', fill: '#1a1a1a', pointerEvents: 'none' } as React.CSSProperties}>
-          {name.length > 8 ? name.slice(0, 7) + '…' : name}
+        <text x={x} y={cy + AVATAR_R + 14} textAnchor="middle"
+          style={{ ...labelStyle, fontSize: '11px', fontWeight: 700, fill: '#1a1a1a' }}>
+          {name.length > 9 ? name.slice(0, 8) + '…' : name}
         </text>
+        {/* Item count */}
+        {itemCount > 0 && (
+          <text x={x} y={cy + AVATAR_R + 26} textAnchor="middle"
+            style={{ ...labelStyle, fontSize: '9px', fill: '#aaa' }}>
+            {itemCount} {itemCount === 1 ? 'item' : 'items'}
+          </text>
+        )}
       </g>
     )
   }
 
-  // ── Generic head + shoulders ──────────────────────────────────────────────
+  // ── Generic head + shoulders (scaled up to match AVATAR_R footprint) ──────
   const fill   = isDropTarget ? '#1a1a1a' : highlighted ? '#555' : '#e8e8e8'
   const stroke = isDropTarget || highlighted ? '#1a1a1a' : '#ccc'
+  const HR = 19   // head radius — was 13
 
   return (
     <g>
       {isDropTarget && (
-        <circle cx={x} cy={y - 10} r={30} fill="none"
+        <circle cx={cx} cy={cy} r={AVATAR_R + 10} fill="none"
           stroke="#1a1a1a" strokeWidth={2} strokeDasharray="4 3" opacity={0.5} />
       )}
       {/* Head */}
-      <circle cx={x} cy={y - 18} r={13} fill={fill} stroke={stroke} strokeWidth={1.5} />
+      <circle cx={cx} cy={cy - 4} r={HR} fill={fill} stroke={stroke} strokeWidth={1.5} />
       {/* Shoulders */}
       <path
-        d={`M ${x-18} ${y+14} C ${x-18} ${y-2} ${x-9} ${y-6} ${x} ${y-6} C ${x+9} ${y-6} ${x+18} ${y-2} ${x+18} ${y+14}`}
+        d={`M ${cx-26} ${cy+22} C ${cx-26} ${cy+2} ${cx-13} ${cy-4} ${cx} ${cy-4} C ${cx+13} ${cy-4} ${cx+26} ${cy+2} ${cx+26} ${cy+22}`}
         fill={fill} stroke={stroke} strokeWidth={1.5}
       />
       {/* Name */}
-      <text x={x} y={y + 26} textAnchor="middle"
-        style={{ fontSize: '10px', fontWeight: 600, fontFamily: 'system-ui, sans-serif', fill: '#1a1a1a', pointerEvents: 'none' } as React.CSSProperties}>
-        {name.length > 8 ? name.slice(0, 7) + '…' : name}
+      <text x={x} y={cy + AVATAR_R + 14} textAnchor="middle"
+        style={{ ...labelStyle, fontSize: '11px', fontWeight: 700, fill: '#1a1a1a' }}>
+        {name.length > 9 ? name.slice(0, 8) + '…' : name}
       </text>
+      {/* Item count */}
+      {itemCount > 0 && (
+        <text x={x} y={cy + AVATAR_R + 26} textAnchor="middle"
+          style={{ ...labelStyle, fontSize: '9px', fill: '#aaa' }}>
+          {itemCount} {itemCount === 1 ? 'item' : 'items'}
+        </text>
+      )}
     </g>
   )
 }
 
 // ─── Droppable seat ───────────────────────────────────────────────────────────
 
-function Seat({ participant, x, y, isDropTarget, highlighted, onTap }: {
+function Seat({ participant, x, y, isDropTarget, highlighted, itemCount, onTap }: {
   participant: Participant; x: number; y: number
-  isDropTarget: boolean; highlighted: boolean; onTap: () => void
+  isDropTarget: boolean; highlighted: boolean; itemCount: number; onTap: () => void
 }) {
   const { setNodeRef } = useDroppable({ id: `seat-${participant.id}`, data: { participantId: participant.id } })
 
   return (
     <g ref={setNodeRef as unknown as React.Ref<SVGGElement>} onClick={onTap} style={{ cursor: 'pointer' }}>
-      <circle cx={x} cy={y - 8} r={36} fill="transparent" />
+      {/* Generous hit target */}
+      <circle cx={x} cy={y - 10} r={AVATAR_R + 14} fill="transparent" />
       <PersonIcon
         x={x} y={y}
         name={participant.name}
@@ -185,34 +207,91 @@ function Seat({ participant, x, y, isDropTarget, highlighted, onTap }: {
         isDropTarget={isDropTarget}
         avatarId={participant.avatar_id}
         participantId={participant.id}
+        itemCount={itemCount}
       />
     </g>
   )
 }
 
-// ─── Droppable share zone ─────────────────────────────────────────────────────
+// ─── Table + droppable share zone ────────────────────────────────────────────
+// The table IS the share zone — drop an item here to split between people.
+// Text overlays are shown only when contextually relevant:
+//   isItemDragging  → "drop to share"
+//   hasPending      → "tap people"
+// When idle the table just looks like a table.
 
-function ShareZone({ isDropTarget, hasPending, onTap }: {
-  isDropTarget: boolean; hasPending: boolean; onTap: () => void
+const TABLE_FILL      = '#C4965A'   // warm oak
+const TABLE_EDGE      = '#9B6E32'   // darker edge / legs
+const TABLE_HIGHLIGHT = 'rgba(255,255,255,0.12)'
+const LEG_W = 13
+const LEG_H = 28
+
+function ShareZone({ isDropTarget, hasPending, isItemDragging, onTap }: {
+  isDropTarget: boolean; hasPending: boolean; isItemDragging: boolean; onTap: () => void
 }) {
   const { setNodeRef } = useDroppable({ id: 'share-zone' })
 
+  const legY = CY + TABLE_RY - 6   // legs peek out below the table top
+
+  const tableFill = isDropTarget
+    ? '#D4A86A'   // lighten on hover
+    : hasPending
+      ? '#B8874A' // darken when selecting people
+      : TABLE_FILL
+
+  const ts: React.CSSProperties = {
+    fontFamily: 'system-ui, sans-serif', pointerEvents: 'none',
+  }
+
   return (
-    <g ref={setNodeRef as unknown as React.Ref<SVGGElement>} onClick={onTap} style={{ cursor: 'pointer' }}>
+    <g ref={setNodeRef as unknown as React.Ref<SVGGElement>} onClick={onTap}
+      style={{ cursor: hasPending || isItemDragging ? 'pointer' : 'default' }}>
+
+      {/* Drop shadow */}
+      <ellipse cx={CX} cy={CY + 9} rx={TABLE_RX + 5} ry={TABLE_RY + 5}
+        fill="rgba(0,0,0,0.10)" />
+
+      {/* Legs — rendered before table top so they appear behind it */}
+      <rect x={CX - 30} y={legY} width={LEG_W} height={LEG_H} rx={4} fill={TABLE_EDGE} />
+      <rect x={CX + 17} y={legY} width={LEG_W} height={LEG_H} rx={4} fill={TABLE_EDGE} />
+
+      {/* Table top */}
       <ellipse cx={CX} cy={CY} rx={TABLE_RX} ry={TABLE_RY}
-        fill={isDropTarget ? '#f0f0f0' : hasPending ? '#fafafa' : 'white'}
-        stroke={isDropTarget ? '#1a1a1a' : hasPending ? '#888' : '#d8d8d8'}
+        fill={tableFill}
+        stroke={TABLE_EDGE}
         strokeWidth={isDropTarget ? 2.5 : 1.5}
-        strokeDasharray={hasPending ? '4 3' : 'none'}
+        strokeDasharray={hasPending ? '5 3' : 'none'}
       />
-      <text x={CX} y={CY - 5} textAnchor="middle"
-        style={{ fontSize: '11px', fontWeight: 600, fill: hasPending ? '#555' : '#c0c0c0', fontFamily: 'system-ui, sans-serif', pointerEvents: 'none' } as React.CSSProperties}>
-        {hasPending ? 'tap people' : 'share'}
-      </text>
-      <text x={CX} y={CY + 10} textAnchor="middle"
-        style={{ fontSize: '9px', fill: '#ccc', fontFamily: 'system-ui, sans-serif', pointerEvents: 'none' } as React.CSSProperties}>
-        {hasPending ? 'to split equally' : 'drop to split'}
-      </text>
+
+      {/* Subtle highlight streak */}
+      <ellipse cx={CX - 12} cy={CY - 14} rx={TABLE_RX * 0.5} ry={TABLE_RY * 0.38}
+        fill={TABLE_HIGHLIGHT} />
+
+      {/* Context text — only shown when relevant */}
+      {isItemDragging && !hasPending && (
+        <>
+          <text x={CX} y={CY - 4} textAnchor="middle"
+            style={{ ...ts, fontSize: '11px', fontWeight: 700, fill: 'rgba(255,255,255,0.9)' }}>
+            drop to share
+          </text>
+          <text x={CX} y={CY + 10} textAnchor="middle"
+            style={{ ...ts, fontSize: '9px', fill: 'rgba(255,255,255,0.6)' }}>
+            splits equally
+          </text>
+        </>
+      )}
+      {hasPending && (
+        <>
+          <text x={CX} y={CY - 4} textAnchor="middle"
+            style={{ ...ts, fontSize: '11px', fontWeight: 700, fill: 'rgba(255,255,255,0.9)' }}>
+            tap people
+          </text>
+          <text x={CX} y={CY + 10} textAnchor="middle"
+            style={{ ...ts, fontSize: '9px', fill: 'rgba(255,255,255,0.65)' }}>
+            to split equally
+          </text>
+        </>
+      )}
     </g>
   )
 }
@@ -594,9 +673,17 @@ function AddPerson() {
 const THREE_ROWS_PX = 120
 
 export default function TableTabView() {
-  const { tab, venue, participants, inventoryItems, supabaseVenueId,
+  const { tab, venue, participants, items, splits, inventoryItems, supabaseVenueId,
           inventoryLoaded, markInventoryLoaded,
           addInventoryItem, addItem, setSplit } = useTab()
+
+  // Per-participant item count — shown under each person's name
+  const itemCountByParticipant: Record<string, number> = {}
+  splits.forEach(sp => {
+    itemCountByParticipant[sp.participant_id] = (itemCountByParticipant[sp.participant_id] || 0) + 1
+  })
+  // Suppress unused-variable warning — items is used indirectly via splits
+  void items
 
   const [activeDragItem, setActiveDragItem] = useState<InventoryItem | null>(null)
   const [tappedItem, setTappedItem]         = useState<InventoryItem | null>(null)
@@ -842,9 +929,15 @@ export default function TableTabView() {
                 <Seat key={participant.id} participant={participant} x={x} y={y}
                   isDropTarget={overId === `seat-${participant.id}`}
                   highlighted={shareZonePeople.includes(participant.id)}
+                  itemCount={itemCountByParticipant[participant.id] || 0}
                   onTap={() => handleTapSeat(participant)} />
               ))}
-              <ShareZone isDropTarget={overId === 'share-zone'} hasPending={!!shareZonePending} onTap={handleTapShareZone} />
+              <ShareZone
+                isDropTarget={overId === 'share-zone'}
+                hasPending={!!shareZonePending}
+                isItemDragging={!!activeDragItem}
+                onTap={handleTapShareZone}
+              />
             </svg>
 
             {toasts.map(t => (
