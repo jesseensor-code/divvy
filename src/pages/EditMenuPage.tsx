@@ -14,6 +14,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTab, type InventoryItem } from '../context/TabContext'
 import { formatRands } from '../lib/currency'
+import { itemEmoji } from '../lib/itemEmoji'
 
 // ─── Toast category options ───────────────────────────────────────────────────
 // These keys must match the FUN_TOASTS keys in TableTabView so the stored type
@@ -50,7 +51,7 @@ function EditRow({ item, onSave, onCancel, onDelete }: {
 }) {
   const [name,  setName]  = useState(item.name)
   const [price, setPrice] = useState(String(item.unitPrice))
-  const [emoji, setEmoji] = useState(item.emoji ?? '')
+  const [emoji, setEmoji] = useState(item.emoji ?? itemEmoji(item.name))
   const [type,  setType]  = useState(item.type ?? '')
   const rowRef = useRef<HTMLDivElement>(null)
 
@@ -127,7 +128,7 @@ function EditRow({ item, onSave, onCancel, onDelete }: {
 // ─── Display row ──────────────────────────────────────────────────────────────
 
 function DisplayRow({ item, onEdit }: { item: InventoryItem; onEdit: () => void }) {
-  const emoji = item.emoji ?? '🍽️'
+  const emoji = item.emoji ?? itemEmoji(item.name)
   const typeLabel = item.type
     ? TYPE_OPTIONS.find(o => o.value === item.type)?.label?.split('  ')[1]
     : null

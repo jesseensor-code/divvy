@@ -20,6 +20,7 @@ import { useTab, type InventoryItem } from '../context/TabContext'
 import { formatRands, parseRands } from '../lib/currency'
 import { getMenuItems, upsertMenuItem } from '../lib/db'
 import { generateId } from '../lib/utils'
+import { itemEmoji, ITEM_EMOJIS } from '../lib/itemEmoji'
 import type { Participant } from '../types/entities'
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
@@ -72,23 +73,6 @@ function funToast(itemName: string, itemType?: string): string {
     if (key !== 'default' && lower.includes(key)) return pick(msgs)
   }
   return pick(FUN_TOASTS.default)
-}
-
-// ─── Emoji hints on inventory cards ──────────────────────────────────────────
-
-const ITEM_EMOJIS: Record<string, string> = {
-  beer: '🍺', wine: '🍷', cocktail: '🍹', water: '💧', coffee: '☕',
-  burger: '🍔', pizza: '🍕', steak: '🥩', salad: '🥗', nachos: '🧀',
-  chips: '🍟', pasta: '🍝', sushi: '🍱', dessert: '🍰', cake: '🎂',
-  whisky: '🥃', gin: '🍸', cider: '🍻',
-}
-
-function itemEmoji(name: string): string {
-  const lower = name.toLowerCase()
-  for (const [word, emoji] of Object.entries(ITEM_EMOJIS)) {
-    if (lower.includes(word)) return emoji
-  }
-  return '🍽️'
 }
 
 // ─── Seat position ────────────────────────────────────────────────────────────
@@ -334,7 +318,7 @@ const editPanelStyle: React.CSSProperties = {
 
 // ─── Add inventory item ───────────────────────────────────────────────────────
 
-function AddInventoryItem({ onAdd }: { onAdd: (name: string, price: number) => void }) {
+function AddInventoryItem({ onAdd }: { onAdd: (name: string, price: number, emoji: string) => void }) {
   const { supabaseVenueId } = useTab()
   const [active, setActive] = useState(false)
   const [name, setName] = useState('')
@@ -363,8 +347,11 @@ function AddInventoryItem({ onAdd }: { onAdd: (name: string, price: number) => v
   function submit() {
     const p = parseRands(price)
     if (!name.trim() || p === null || p <= 0) return
-    onAdd(name, p)
-    if (supabaseVenueId) upsertMenuItem(supabaseVenueId, name.trim(), p)
+    // Derive the best-match emoji at add time so it's stored immediately —
+    // both in local InventoryItem state and in the Supabase menu_items row.
+    const emoji = itemEmoji(name.trim())
+    onAdd(name, p, emoji)
+    if (supabaseVenueId) upsertMenuItem(supabaseVenueId, name.trim(), p, emoji)
     setName(''); setPrice(''); setActive(false)
   }
 
