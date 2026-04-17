@@ -233,7 +233,6 @@ export function TabProvider({ children }: { children: ReactNode }) {
   // stateRef lets the stable channel callbacks read current state without
   // needing to be recreated whenever state changes.
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const stateRef = useRef(state)
   useEffect(() => { stateRef.current = state }, [state])
 
@@ -572,10 +571,11 @@ export function TabProvider({ children }: { children: ReactNode }) {
   // Also triggers the tab write to Supabase — now we have the real venue ID.
 
   const setSupabaseVenueId = useCallback((id: string) => {
-    // upsertTab must live outside setState — updaters can run multiple times in StrictMode
-    if (state.tab) upsertTab(state.tab, id)
+    // Read tab from stateRef, not the closure — this function is called from Home
+    // after navigation, by which point the closure's state.tab would be stale (null).
+    if (stateRef.current.tab) upsertTab(stateRef.current.tab, id)
     setState(s => ({ ...s, supabaseVenueId: id }))
-  }, [state.tab])
+  }, [])
 
   // ── markInventoryLoaded ────────────────────────────────────────────────────
 
