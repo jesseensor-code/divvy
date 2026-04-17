@@ -25,6 +25,7 @@ export type MenuItem = {
   name: string
   price: number       // ZAR
   emoji?: string      // user-set override; null means use auto-derived emoji
+  type?: string       // category key — matches FUN_TOASTS keys, e.g. "beer", "steak"
   updated_at: string
   created_at: string
 }

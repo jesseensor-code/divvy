@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { useParams, Link } from 'react-router-dom'
 import { useTab } from '../context/TabContext'
 import { buildTabSummary } from '../lib/calculations'
 import { formatRands } from '../lib/currency'
@@ -41,16 +41,21 @@ export default function Tab() {
 
         <div style={s.header}>
           <div>
-            <p style={s.venue}>{venue.name}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <p style={s.venue}>{venue.name}</p>
+              <Link to={`/tab/${id}/menu`} style={s.editMenuLink}>Edit menu</Link>
+            </div>
             <h1 style={s.title}>{tab.name}</h1>
           </div>
-          <button style={s.shareBtn} onClick={handleShare} aria-label="Share tab">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <button style={s.shareBtn} onClick={handleShare}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ flexShrink: 0 }}>
               <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
               <polyline points="16 6 12 2 8 6"/>
               <line x1="12" y1="2" x2="12" y2="15"/>
             </svg>
+            Invite
           </button>
         </div>
 
@@ -64,6 +69,7 @@ export default function Tab() {
           <div style={s.totalStrip}>
             <span style={s.totalLabel}>Total</span>
             <span style={s.totalAmount}>{formatRands(summary.grand_total)}</span>
+            <Link to={`/tab/${id}/items`} style={s.editTabLink}>Edit tab</Link>
             <span style={s.scrollHint}>↓ breakdown</span>
           </div>
         )}
@@ -134,5 +140,16 @@ const s: Record<string, React.CSSProperties> = {
   },
   scrollHint: {
     fontSize: '0.7rem', color: '#ccc', fontWeight: 500,
+  },
+  editMenuLink: {
+    fontSize: '0.65rem', fontWeight: 700,
+    textTransform: 'uppercase' as const, letterSpacing: '0.05em',
+    color: '#bbb', textDecoration: 'none',
+    padding: '2px 6px', borderRadius: 4,
+    border: '1px solid #e8e8e8',
+  },
+  editTabLink: {
+    fontSize: '0.7rem', fontWeight: 600,
+    color: '#bbb', textDecoration: 'none',
   },
 }

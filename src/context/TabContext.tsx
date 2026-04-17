@@ -19,7 +19,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { Item, ItemSplit, Participant, Tab, Venue } from '../types/entities'
-import { upsertMenuItem } from '../lib/db'
+import { upsertMenuItem, deleteMenuItem } from '../lib/db'
 import { generateId } from '../lib/utils'
 
 // ─── Inventory item ───────────────────────────────────────────────────────────
@@ -32,6 +32,7 @@ export type InventoryItem = {
   name: string
   unitPrice: number
   emoji?: string   // if set, overrides the auto-derived emoji at render time
+  type?: string    // category key for toasts — e.g. "beer", "steak"; mirrors menu_items.type
 }
 
 // ─── State shape ─────────────────────────────────────────────────────────────
@@ -76,13 +77,19 @@ type TabContextValue = TabState & {
   removeSplit: (itemId: string, participantId: string) => void
 
   // Add an item type to the inventory pool (persists across view switches)
-  addInventoryItem: (name: string, unitPrice: number, emoji?: string) => InventoryItem
+  addInventoryItem: (name: string, unitPrice: number, emoji?: string, type?: string) => InventoryItem
 
-  // Update an inventory item template (name, price, or emoji override)
-  updateInventoryItem: (id: string, patch: Partial<Pick<InventoryItem, 'name' | 'unitPrice' | 'emoji'>>) => void
+  // Update an inventory item template (name, price, emoji, or type override)
+  updateInventoryItem: (id: string, patch: Partial<Pick<InventoryItem, 'name' | 'unitPrice' | 'emoji' | 'type'>>) => void
+
+  // Remove an inventory item from the pool (also deletes from Supabase menu)
+  removeInventoryItem: (id: string) => void
 
   // Update a committed tab line item (name or price)
   updateItem: (id: string, patch: Partial<Pick<Item, 'name' | 'total_price'>>) => void
+
+  // Remove a committed tab line item and all its splits
+  removeItem: (id: string) => void
 
   // Called from Home once upsertVenue resolves — stores the real Supabase venue ID
   setSupabaseVenueId: (id: string) => void
@@ -264,12 +271,13 @@ export function TabProvider({ children }: { children: ReactNode }) {
 
   // ── addInventoryItem ───────────────────────────────────────────────────────
 
-  const addInventoryItem = useCallback((name: string, unitPrice: number, emoji?: string): InventoryItem => {
+  const addInventoryItem = useCallback((name: string, unitPrice: number, emoji?: string, type?: string): InventoryItem => {
     const item: InventoryItem = {
       id: generateId(),
       name: name.trim(),
       unitPrice,
       ...(emoji ? { emoji } : {}),
+      ...(type ? { type } : {}),
     }
     setState(s => ({ ...s, inventoryItems: [...s.inventoryItems, item] }))
     return item
@@ -279,7 +287,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
 
   const updateInventoryItem = useCallback((
     id: string,
-    patch: Partial<Pick<InventoryItem, 'name' | 'unitPrice' | 'emoji'>>,
+    patch: Partial<Pick<InventoryItem, 'name' | 'unitPrice' | 'emoji' | 'type'>>,
   ) => {
     // Read originals from closure so we can match already-assigned items below
     const original = state.inventoryItems.find(inv => inv.id === id)
@@ -300,7 +308,19 @@ export function TabProvider({ children }: { children: ReactNode }) {
 
     // Persist outside setState — async side effects must not live in updaters
     if (state.supabaseVenueId) {
-      upsertMenuItem(state.supabaseVenueId, updated.name, updated.unitPrice, updated.emoji)
+      upsertMenuItem(state.supabaseVenueId, updated.name, updated.unitPrice, updated.emoji, updated.type)
+    }
+  }, [state.inventoryItems, state.supabaseVenueId])
+
+  // ── removeInventoryItem ────────────────────────────────────────────────────
+
+  const removeInventoryItem = useCallback((id: string) => {
+    const item = state.inventoryItems.find(inv => inv.id === id)
+    if (!item) return
+    setState(s => ({ ...s, inventoryItems: s.inventoryItems.filter(inv => inv.id !== id) }))
+    // Delete from Supabase menu (fire-and-forget)
+    if (state.supabaseVenueId) {
+      deleteMenuItem(state.supabaseVenueId, item.name)
     }
   }, [state.inventoryItems, state.supabaseVenueId])
 
@@ -315,6 +335,16 @@ export function TabProvider({ children }: { children: ReactNode }) {
       items: s.items.map(item =>
         item.id === id ? { ...item, ...patch } : item
       ),
+    }))
+  }, [])
+
+  // ── removeItem ────────────────────────────────────────────────────────────
+
+  const removeItem = useCallback((id: string) => {
+    setState(s => ({
+      ...s,
+      items: s.items.filter(item => item.id !== id),
+      splits: s.splits.filter(sp => sp.item_id !== id),
     }))
   }, [])
 
@@ -359,7 +389,9 @@ export function TabProvider({ children }: { children: ReactNode }) {
       removeSplit,
       addInventoryItem,
       updateInventoryItem,
+      removeInventoryItem,
       updateItem,
+      removeItem,
       setSupabaseVenueId,
       markInventoryLoaded,
       setTipPercent,

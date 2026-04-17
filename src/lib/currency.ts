@@ -7,19 +7,19 @@
  */
 
 /**
- * Format a number as a ZAR amount.
+ * Format a number as a ZAR amount — no decimal places.
  *
- * formatRands(120)     → "R 120.00"
- * formatRands(1234.5)  → "R 1 234.50"
- * formatRands(0)       → "R 0.00"
+ * formatRands(120)    → "R 120"
+ * formatRands(1234)   → "R 1 234"
+ * formatRands(49.5)   → "R 50"  (rounded for display; internal calcs keep precision)
  */
 export function formatRands(amount: number): string {
   return new Intl.NumberFormat('en-ZA', {
     style: 'currency',
     currency: 'ZAR',
     currencyDisplay: 'symbol',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(amount)
 }
 

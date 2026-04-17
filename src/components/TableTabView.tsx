@@ -64,7 +64,9 @@ function pick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
-function funToast(itemName: string): string {
+function funToast(itemName: string, itemType?: string): string {
+  // Prefer the stored type field (exact key lookup) over substring scanning the name
+  if (itemType && FUN_TOASTS[itemType]) return pick(FUN_TOASTS[itemType])
   const lower = itemName.toLowerCase()
   for (const [key, msgs] of Object.entries(FUN_TOASTS)) {
     if (key !== 'default' && lower.includes(key)) return pick(msgs)
@@ -370,7 +372,7 @@ function AddInventoryItem({ onAdd }: { onAdd: (name: string, price: number) => v
     return (
       <button
         style={{ ...cardStyle, border: '1.5px dashed #ccc', color: '#bbb', background: 'none', boxShadow: 'none', cursor: 'pointer', touchAction: 'auto' }}
-        onClick={() => { setActive(true); setTimeout(() => nameRef.current?.focus(), 40) }}
+        onClick={() => setActive(true)}
       >
         <span style={{ fontSize: '0.9rem' }}>+</span>
         <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Add item</span>
@@ -380,8 +382,9 @@ function AddInventoryItem({ onAdd }: { onAdd: (name: string, price: number) => v
 
   return (
     <div ref={formRef} style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
+      {/* autoFocus fires on mount — no setTimeout needed */}
       <input ref={nameRef} style={miniInput} placeholder="Name" value={name} onChange={e => setName(e.target.value)}
-        onKeyDown={e => e.key === 'Enter' && submit()} />
+        onKeyDown={e => e.key === 'Enter' && submit()} autoFocus />
       <input style={{ ...miniInput, width: 72 }} placeholder="R" type="number" value={price}
         onChange={e => setPrice(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
       <button style={miniConfirm} onClick={submit}>Add</button>
@@ -477,7 +480,7 @@ export default function TableTabView() {
     markInventoryLoaded()
     getMenuItems(supabaseVenueId).then(menuItems => {
       menuItems.forEach(mi => {
-        addInventoryItem(mi.name, mi.price, mi.emoji ?? undefined)
+        addInventoryItem(mi.name, mi.price, mi.emoji ?? undefined, mi.type ?? undefined)
       })
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -514,7 +517,7 @@ export default function TableTabView() {
     const created = addItem(item.name, item.unitPrice, emoji)
     setSplit(created.id, participantId, 1)
     const pos = getSeatPos(participantId)
-    if (pos) addToast(funToast(item.name), pos.x, pos.y)
+    if (pos) addToast(funToast(item.name, item.type), pos.x, pos.y)
   }
 
   function sendToShareZone(item: InventoryItem) {
@@ -531,7 +534,7 @@ export default function TableTabView() {
     // Toast at each involved person
     shareZonePeople.forEach(pid => {
       const pos = getSeatPos(pid)
-      if (pos) addToast(funToast(shareZonePending.name), pos.x, pos.y)
+      if (pos) addToast(funToast(shareZonePending.name, shareZonePending.type), pos.x, pos.y)
     })
     setShareZonePending(null)
     setShareZonePeople([])
@@ -608,12 +611,13 @@ export default function TableTabView() {
               transition: 'max-height 0.2s ease',
             }}
           >
+            {/* Add button first — always visible in row 1, never pushed below fold */}
+            <AddInventoryItem onAdd={addInventoryItem} />
             {inventoryItems.map(item => (
               <InventoryCard key={item.id} item={item}
                 selected={tappedItem?.id === item.id}
                 onTap={() => handleTapInventory(item)} />
             ))}
-            <AddInventoryItem onAdd={addInventoryItem} />
           </div>
 
           {/* Expand / collapse arrow — only shown when there are 4+ rows */}

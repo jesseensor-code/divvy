@@ -62,7 +62,7 @@ export async function upsertVenue(name: string): Promise<Venue | null> {
 export async function getMenuItems(venueId: string): Promise<MenuItem[]> {
   const { data, error } = await supabase
     .from('menu_items')
-    .select('id, venue_id, name, price, emoji, updated_at, created_at')
+    .select('id, venue_id, name, price, emoji, type, updated_at, created_at')
     .eq('venue_id', venueId)
     .order('name')
   if (error) { console.error('getMenuItems:', error); return [] }
@@ -77,7 +77,7 @@ export async function searchMenuItems(venueId: string, query: string): Promise<M
   if (!query.trim()) return getMenuItems(venueId)
   const { data, error } = await supabase
     .from('menu_items')
-    .select('id, venue_id, name, price, emoji, updated_at, created_at')
+    .select('id, venue_id, name, price, emoji, type, updated_at, created_at')
     .eq('venue_id', venueId)
     .ilike('name', `%${query}%`)
     .order('name')
@@ -97,10 +97,11 @@ export async function upsertMenuItem(
   name: string,
   price: number,
   emoji?: string,
+  type?: string,
 ): Promise<MenuItem | null> {
-  // Only include emoji in the payload when it's explicitly provided.
-  // Omitting it on conflict means the stored emoji is preserved rather than
-  // being overwritten with null (e.g. when an item is added via classic view).
+  // Only include emoji/type in the payload when explicitly provided.
+  // Omitting them on conflict means stored values are preserved rather than
+  // being overwritten with null (e.g. when an item is added without those fields).
   const payload: Record<string, unknown> = {
     venue_id: venueId,
     name: name.trim(),
@@ -108,12 +109,26 @@ export async function upsertMenuItem(
     updated_at: new Date().toISOString(),
   }
   if (emoji !== undefined) payload.emoji = emoji
+  if (type !== undefined) payload.type = type
 
   const { data, error } = await supabase
     .from('menu_items')
     .upsert(payload, { onConflict: 'venue_id,name' })
-    .select('id, venue_id, name, price, emoji, updated_at, created_at')
+    .select('id, venue_id, name, price, emoji, type, updated_at, created_at')
     .single()
   if (error) { console.error('upsertMenuItem:', error); return null }
   return data
+}
+
+/**
+ * Delete a menu item from a venue by name.
+ * Called when the venue owner removes an item from the menu entirely.
+ */
+export async function deleteMenuItem(venueId: string, name: string): Promise<void> {
+  const { error } = await supabase
+    .from('menu_items')
+    .delete()
+    .eq('venue_id', venueId)
+    .eq('name', name.trim())
+  if (error) console.error('deleteMenuItem:', error)
 }
