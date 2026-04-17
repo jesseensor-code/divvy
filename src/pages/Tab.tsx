@@ -110,11 +110,12 @@ const s: Record<string, React.CSSProperties> = {
   },
   title: { margin: '0.1rem 0 0', fontSize: '1.1rem', fontWeight: 700 },
   shareBtn: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 36, height: 36,
+    display: 'flex', alignItems: 'center', gap: 5,
+    padding: '0 12px', height: 34,
     background: 'none', border: '1.5px solid #e8e8e8',
-    borderRadius: '50%', cursor: 'pointer', color: '#555',
-    flexShrink: 0,
+    borderRadius: 99, cursor: 'pointer', color: '#555',
+    fontSize: '0.8rem', fontWeight: 600,
+    flexShrink: 0, whiteSpace: 'nowrap',
   },
   main: {
     flex: 1,
