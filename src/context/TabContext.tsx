@@ -195,6 +195,23 @@ export function TabProvider({ children }: { children: ReactNode }) {
   // Persist state on every change so page refresh restores the session
   useEffect(() => { saveState(state) }, [state])
 
+  // ── Persist tab to Supabase ────────────────────────────────────────────────
+  // Runs once both state.tab and state.supabaseVenueId are available.
+  // Using a ref-based Set so it fires exactly once per tab ID — not on every
+  // re-render, and correctly if the same provider somehow sees two different tabs.
+  // This sidesteps the stale-closure problem: setSupabaseVenueId is called from
+  // Home synchronously in the same event as createTab(), before React commits
+  // the new state. A useEffect is the only reliable way to observe both values
+  // being set at the same time.
+
+  const tabsWrittenRef = useRef(new Set<string>())
+  useEffect(() => {
+    if (!state.tab || !state.supabaseVenueId) return
+    if (tabsWrittenRef.current.has(state.tab.id)) return
+    tabsWrittenRef.current.add(state.tab.id)
+    upsertTab(state.tab, state.supabaseVenueId)
+  }, [state.tab?.id, state.supabaseVenueId])
+
   // ── Cold-load bootstrap ────────────────────────────────────────────────────
   // When a second device opens the tab URL, localStorage is empty.
   // Fetch the full tab state from Supabase once, then let realtime take over.
@@ -571,9 +588,6 @@ export function TabProvider({ children }: { children: ReactNode }) {
   // Also triggers the tab write to Supabase — now we have the real venue ID.
 
   const setSupabaseVenueId = useCallback((id: string) => {
-    // Read tab from stateRef, not the closure — this function is called from Home
-    // after navigation, by which point the closure's state.tab would be stale (null).
-    if (stateRef.current.tab) upsertTab(stateRef.current.tab, id)
     setState(s => ({ ...s, supabaseVenueId: id }))
   }, [])
 
