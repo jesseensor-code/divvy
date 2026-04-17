@@ -219,8 +219,8 @@ function SeatToastBubble({ toast, onDone }: { toast: SeatToast; onDone: () => vo
 
 // ─── Draggable inventory card ─────────────────────────────────────────────────
 
-function InventoryCard({ item, selected, onTap, onEdit }: {
-  item: InventoryItem; selected: boolean; onTap: () => void; onEdit: () => void
+function InventoryCard({ item, selected, onTap }: {
+  item: InventoryItem; selected: boolean; onTap: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id, data: { item } })
   const emoji = item.emoji ?? itemEmoji(item.name)
@@ -243,15 +243,6 @@ function InventoryCard({ item, selected, onTap, onEdit }: {
       <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap' }}>{item.name}</span>
       <span style={{ width: 1, height: 12, background: '#e0e0e0', flexShrink: 0 }} />
       <span style={{ fontSize: '0.7rem', color: '#bbb', whiteSpace: 'nowrap' }}>{formatRands(item.unitPrice)}</span>
-      {/* Edit — stopPropagation so it doesn't fire onTap or wake the drag */}
-      <button
-        style={editBtnStyle}
-        onClick={e => { e.stopPropagation(); onEdit() }}
-        onPointerDown={e => e.stopPropagation()}
-        aria-label={`Edit ${item.name}`}
-      >
-        ✎
-      </button>
     </div>
   )
 }
@@ -404,6 +395,23 @@ function AddPerson() {
   const { addParticipant } = useTab()
   const [active, setActive] = useState(false)
   const [name, setName] = useState('')
+  const formRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!active) return
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      if (formRef.current && !formRef.current.contains(e.target as Node)) {
+        setActive(false)
+        setName('')
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
+    }
+  }, [active])
 
   function submit() {
     if (!name.trim()) return
@@ -416,28 +424,34 @@ function AddPerson() {
   }
 
   return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+    <div ref={formRef} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
       <input style={miniInput} placeholder="Name" value={name} onChange={e => setName(e.target.value)}
         onKeyDown={e => e.key === 'Enter' && submit()} autoFocus />
       <button style={miniConfirm} onClick={submit}>Add</button>
-      <button style={miniCancel} onClick={() => setActive(false)}>✕</button>
     </div>
   )
 }
 
 // ─── Main View ────────────────────────────────────────────────────────────────
 
+// Approximate height of 3 pill rows (pill ~34px + 8px gap each)
+const THREE_ROWS_PX = 120
+
 export default function TableTabView() {
   const { tab, venue, participants, inventoryItems, supabaseVenueId,
           inventoryLoaded, markInventoryLoaded,
-          addInventoryItem, updateInventoryItem, addItem, setSplit } = useTab()
+          addInventoryItem, addItem, setSplit } = useTab()
 
   const [activeDragItem, setActiveDragItem] = useState<InventoryItem | null>(null)
   const [tappedItem, setTappedItem]         = useState<InventoryItem | null>(null)
-  const [editingItem, setEditingItem]       = useState<InventoryItem | null>(null)
   const [shareZonePending, setShareZonePending] = useState<InventoryItem | null>(null)
   const [shareZonePeople, setShareZonePeople]   = useState<string[]>([])
   const [overId, setOverId] = useState<string | null>(null)
+
+  // Inventory overflow / expand
+  const inventoryRef  = useRef<HTMLDivElement>(null)
+  const [hasOverflow, setHasOverflow]           = useState(false)
+  const [inventoryExpanded, setInventoryExpanded] = useState(false)
 
   // Multiple toasts can stack (rapid assignments)
   const [toasts, setToasts] = useState<SeatToast[]>([])
@@ -468,6 +482,16 @@ export default function TableTabView() {
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabaseVenueId, inventoryLoaded])
+
+  // Detect whether inventory overflows past 3 rows.
+  // scrollHeight reflects full content height even when overflow:hidden is set,
+  // so this works correctly whether the zone is collapsed or expanded.
+  useEffect(() => {
+    const el = inventoryRef.current
+    if (!el) return
+    setHasOverflow(el.scrollHeight > THREE_ROWS_PX + 16)
+  }, [inventoryItems])
+
 
   // Get the SVG-space seat position for a participant
   function getSeatPos(participantId: string) {
@@ -537,6 +561,7 @@ export default function TableTabView() {
   const handleDragStart = useCallback((e: DragStartEvent) => {
     setActiveDragItem(e.active.data.current?.item ?? null)
     setTappedItem(null)
+    setInventoryExpanded(false) // reclaim screen space while dragging
   }, [])
 
   const handleDragEnd = useCallback((e: DragEndEvent) => {
@@ -569,96 +594,114 @@ export default function TableTabView() {
       onDragCancel={handleDragCancel}
       onDragOver={e => setOverId(e.over?.id?.toString() ?? null)}>
 
-      {/* Inventory pool */}
-      <div style={{ padding: '0.75rem 1.25rem 0.5rem', borderBottom: '1px solid #f0f0f0' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}>
-          {inventoryItems.map(item => (
-            <InventoryCard key={item.id} item={item}
-              selected={tappedItem?.id === item.id}
-              onTap={() => handleTapInventory(item)}
-              onEdit={() => { setEditingItem(item); setTappedItem(null) }} />
-          ))}
-          <AddInventoryItem onAdd={addInventoryItem} />
-        </div>
-      </div>
+      {/* Flex column wrapper — fills the height given by Tab.tsx */}
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
-      {/* Edit panel — shown below inventory when ✎ is tapped */}
-      {editingItem && (
-        <EditInventoryPanel
-          item={editingItem}
-          onSave={patch => updateInventoryItem(editingItem.id, patch)}
-          onClose={() => setEditingItem(null)}
-        />
-      )}
+        {/* ── Inventory zone ────────────────────────────────────────────── */}
+        <div style={{ padding: '0.65rem 1.25rem 0', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
+          <div
+            ref={inventoryRef}
+            style={{
+              display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start',
+              maxHeight: inventoryExpanded ? 'none' : THREE_ROWS_PX,
+              overflow: 'hidden',
+              transition: 'max-height 0.2s ease',
+            }}
+          >
+            {inventoryItems.map(item => (
+              <InventoryCard key={item.id} item={item}
+                selected={tappedItem?.id === item.id}
+                onTap={() => handleTapInventory(item)} />
+            ))}
+            <AddInventoryItem onAdd={addInventoryItem} />
+          </div>
 
-      {/* Pulsing action banner */}
-      {isItemActive && (
-        <div className="pulse" style={{
-          padding: '0.5rem 1.25rem', background: '#1a1a1a', color: 'white',
-          fontSize: '0.82rem', fontWeight: 600, textAlign: 'center',
-        }}>
-          {activeDragItem
-            ? `Drop "${activeItemName}" onto a person or the share zone`
-            : `"${activeItemName}" selected — tap a person or the share zone`
-          }
-        </div>
-      )}
-
-      {/* Share zone confirm bar */}
-      {shareZonePending && !isItemActive && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-          padding: '0.6rem 1.25rem', background: '#f8f8f8', borderBottom: '1px solid #ebebeb',
-        }}>
-          <span style={{ fontSize: '0.85rem', color: '#444', flex: 1 }}>
-            Splitting <strong>{shareZonePending.name}</strong>
-            {shareZonePeople.length === 0
-              ? ' — tap people below'
-              : ` between ${shareZonePeople.map(id => participants.find(p => p.id === id)?.name).join(' & ')}`
-            }
-          </span>
-          {shareZonePeople.length > 0 && (
-            <button onClick={confirmShare} style={{ padding: '0.35rem 0.85rem', background: '#1a1a1a', color: 'white', border: 'none', borderRadius: 20, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
-              Confirm split
+          {/* Expand / collapse arrow — only shown when there are 4+ rows */}
+          {hasOverflow && (
+            <button
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: '100%', padding: '4px 0 6px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: '#bbb', fontSize: '0.7rem', gap: 4,
+              }}
+              onClick={() => setInventoryExpanded(p => !p)}
+            >
+              {inventoryExpanded ? '▲ less' : '▼ more'}
             </button>
           )}
-          <button onClick={() => { setShareZonePending(null); setShareZonePeople([]) }}
-            style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '0.85rem' }}>
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* SVG table — position:relative wrapper so toast coords map 1:1 */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.5rem 0 0' }}>
-        <div style={{ position: 'relative', width: TABLE_W, height: TABLE_H }}>
-
-          <svg width={TABLE_W} height={TABLE_H} viewBox={`0 0 ${TABLE_W} ${TABLE_H}`}
-            style={{ overflow: 'visible', display: 'block' }}>
-            <ellipse cx={CX} cy={CY + 6} rx={TABLE_RX + 3} ry={TABLE_RY + 3} fill="rgba(0,0,0,0.04)" />
-            {seats.map(({ participant, x, y }) => (
-              <Seat key={participant.id} participant={participant} x={x} y={y}
-                isDropTarget={overId === `seat-${participant.id}`}
-                highlighted={shareZonePeople.includes(participant.id)}
-                onTap={() => handleTapSeat(participant)} />
-            ))}
-            <ShareZone isDropTarget={overId === 'share-zone'} hasPending={!!shareZonePending} onTap={handleTapShareZone} />
-          </svg>
-
-          {/* Contextual toasts overlaid on SVG coordinate space */}
-          {toasts.map(t => (
-            <SeatToastBubble key={t.id} toast={t} onDone={() => removeToast(t.id)} />
-          ))}
         </div>
 
-        {participants.length === 0 && (
-          <p style={{ color: '#ccc', fontSize: '0.85rem', margin: '0.5rem 0 0', textAlign: 'center' }}>
-            Add people to see them at the table
-          </p>
+        {/* ── Action banner ─────────────────────────────────────────────── */}
+        {isItemActive && (
+          <div className="pulse" style={{
+            padding: '0.45rem 1.25rem', background: '#1a1a1a', color: 'white',
+            fontSize: '0.8rem', fontWeight: 600, textAlign: 'center', flexShrink: 0,
+          }}>
+            {activeDragItem
+              ? `Drop "${activeItemName}" onto a person or the share zone`
+              : `"${activeItemName}" selected — tap a person or the share zone`
+            }
+          </div>
         )}
 
-        <AddPerson />
-      </div>
+        {/* ── Share zone confirm bar ────────────────────────────────────── */}
+        {shareZonePending && !isItemActive && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+            padding: '0.5rem 1.25rem', background: '#f8f8f8',
+            borderBottom: '1px solid #ebebeb', flexShrink: 0,
+          }}>
+            <span style={{ fontSize: '0.85rem', color: '#444', flex: 1 }}>
+              Splitting <strong>{shareZonePending.name}</strong>
+              {shareZonePeople.length === 0
+                ? ' — tap people below'
+                : ` between ${shareZonePeople.map(id => participants.find(p => p.id === id)?.name).join(' & ')}`
+              }
+            </span>
+            {shareZonePeople.length > 0 && (
+              <button onClick={confirmShare} style={{ padding: '0.35rem 0.85rem', background: '#1a1a1a', color: 'white', border: 'none', borderRadius: 20, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+                Confirm split
+              </button>
+            )}
+            <button onClick={() => { setShareZonePending(null); setShareZonePeople([]) }}
+              style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '0.85rem' }}>
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* ── SVG table — fills remaining height ───────────────────────── */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.25rem 0 0', overflow: 'hidden' }}>
+          <div style={{ position: 'relative', width: TABLE_W, height: TABLE_H, flexShrink: 0 }}>
+
+            <svg width={TABLE_W} height={TABLE_H} viewBox={`0 0 ${TABLE_W} ${TABLE_H}`}
+              style={{ overflow: 'visible', display: 'block' }}>
+              <ellipse cx={CX} cy={CY + 6} rx={TABLE_RX + 3} ry={TABLE_RY + 3} fill="rgba(0,0,0,0.04)" />
+              {seats.map(({ participant, x, y }) => (
+                <Seat key={participant.id} participant={participant} x={x} y={y}
+                  isDropTarget={overId === `seat-${participant.id}`}
+                  highlighted={shareZonePeople.includes(participant.id)}
+                  onTap={() => handleTapSeat(participant)} />
+              ))}
+              <ShareZone isDropTarget={overId === 'share-zone'} hasPending={!!shareZonePending} onTap={handleTapShareZone} />
+            </svg>
+
+            {toasts.map(t => (
+              <SeatToastBubble key={t.id} toast={t} onDone={() => removeToast(t.id)} />
+            ))}
+          </div>
+
+          {participants.length === 0 && (
+            <p style={{ color: '#ccc', fontSize: '0.85rem', margin: '0.5rem 0 0', textAlign: 'center' }}>
+              Add people to see them at the table
+            </p>
+          )}
+
+          <AddPerson />
+        </div>
+
+      </div>{/* end flex column wrapper */}
 
       <DragOverlay>
         {activeDragItem && (
@@ -676,11 +719,6 @@ export default function TableTabView() {
 
 // ─── Micro-styles ─────────────────────────────────────────────────────────────
 
-const editBtnStyle: React.CSSProperties = {
-  background: 'none', border: 'none', cursor: 'pointer',
-  fontSize: '0.65rem', color: '#ccc', padding: '0 0 0 2px',
-  lineHeight: 1, flexShrink: 0,
-}
 
 const miniInput: React.CSSProperties = {
   padding: '0.35rem 0.65rem', border: '1.5px solid #d0d0d0',
@@ -690,9 +728,7 @@ const miniConfirm: React.CSSProperties = {
   padding: '0.35rem 0.65rem', background: '#1a1a1a', color: 'white',
   border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem',
 }
-const miniCancel: React.CSSProperties = {
-  background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '1rem',
-}
+
 const addPersonBtn: React.CSSProperties = {
   marginTop: 8, padding: '0.45rem 1rem', border: '1.5px dashed #ccc',
   borderRadius: 20, background: 'none', color: '#aaa', cursor: 'pointer', fontSize: '0.85rem',
