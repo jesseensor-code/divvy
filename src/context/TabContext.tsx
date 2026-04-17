@@ -19,7 +19,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { Item, ItemSplit, Participant, Tab, Venue } from '../types/entities'
-import { upsertMenuItem, deleteMenuItem } from '../lib/db'
+import { upsertMenuItem, deleteMenuItem, upsertParticipant, updateParticipantAvatar } from '../lib/db'
 import { generateId } from '../lib/utils'
 
 // ─── Inventory item ───────────────────────────────────────────────────────────
@@ -64,6 +64,9 @@ type TabContextValue = TabState & {
 
   // Add a participant by name — anyone can do this
   addParticipant: (name: string) => Participant
+
+  // Set (or clear) the avatar for a participant — writes to Supabase immediately
+  setParticipantAvatar: (participantId: string, avatarId: number | null) => void
 
   // Add a line item — anyone can do this
   // emoji is optional and passed through to upsertMenuItem for passive menu building
@@ -214,8 +217,25 @@ export function TabProvider({ children }: { children: ReactNode }) {
       created_at: new Date().toISOString(),
     }
     setState(s => ({ ...s, participants: [...s.participants, participant] }))
+    // Write to Supabase so the row exists for avatar updates and future realtime sync
+    upsertParticipant(participant)
     return participant
   }, [state.tab])
+
+  // ── setParticipantAvatar ───────────────────────────────────────────────────
+
+  const setParticipantAvatar = useCallback((participantId: string, avatarId: number | null) => {
+    setState(s => ({
+      ...s,
+      participants: s.participants.map(p =>
+        p.id === participantId
+          ? { ...p, avatar_id: avatarId ?? undefined }
+          : p
+      ),
+    }))
+    // Persist to Supabase — when realtime lands, this update propagates to all devices
+    updateParticipantAvatar(participantId, avatarId)
+  }, [])
 
   // ── addItem ────────────────────────────────────────────────────────────────
 
@@ -384,6 +404,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
       isCreator,
       createTab,
       addParticipant,
+      setParticipantAvatar,
       addItem,
       setSplit,
       removeSplit,

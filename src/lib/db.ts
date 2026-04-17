@@ -9,7 +9,7 @@
  */
 
 import { supabase } from './supabase'
-import type { Venue, MenuItem } from '../types/entities'
+import type { Venue, MenuItem, Participant } from '../types/entities'
 
 // ─── Venues ───────────────────────────────────────────────────────────────────
 
@@ -51,6 +51,43 @@ export async function upsertVenue(name: string): Promise<Venue | null> {
     .single()
   if (error) { console.error('upsertVenue:', error); return null }
   return data
+}
+
+// ─── Participants ─────────────────────────────────────────────────────────────
+
+/**
+ * Upsert a participant into the participants table.
+ * Called when a participant is added to a tab so their record lives in the DB,
+ * ready for real-time sync and cross-device avatar reads.
+ */
+export async function upsertParticipant(participant: Participant): Promise<void> {
+  const { error } = await supabase
+    .from('participants')
+    .upsert({
+      id: participant.id,
+      tab_id: participant.tab_id,
+      name: participant.name,
+      avatar_id: participant.avatar_id ?? null,
+      created_at: participant.created_at,
+    }, { onConflict: 'id' })
+  if (error) console.error('upsertParticipant:', error)
+}
+
+/**
+ * Update only the avatar_id for a participant.
+ * Lightweight write — called immediately when a user picks an avatar.
+ * All connected devices will pick this up via the realtime subscription
+ * once that is implemented.
+ */
+export async function updateParticipantAvatar(
+  participantId: string,
+  avatarId: number | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from('participants')
+    .update({ avatar_id: avatarId })
+    .eq('id', participantId)
+  if (error) console.error('updateParticipantAvatar:', error)
 }
 
 // ─── Menu items ───────────────────────────────────────────────────────────────

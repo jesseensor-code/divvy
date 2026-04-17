@@ -89,12 +89,59 @@ function seatPosition(index: number, total: number) {
   }
 }
 
+// ─── Avatar URL helper ────────────────────────────────────────────────────────
+
+function avatarUrl(avatarId: number) {
+  return `/avatars/avatar-${String(avatarId).padStart(2, '0')}.webp`
+}
+
 // ─── SVG person icon ──────────────────────────────────────────────────────────
 
-function PersonIcon({ x, y, name, highlighted, isDropTarget }: {
+function PersonIcon({ x, y, name, highlighted, isDropTarget, avatarId, participantId }: {
   x: number; y: number; name: string
   highlighted: boolean; isDropTarget: boolean
+  avatarId?: number; participantId: string
 }) {
+  const clipId = `av-clip-${participantId}`
+  const AVATAR_R = 16   // radius of the avatar circle in SVG units
+  const cx = x
+  const cy = y - 8      // vertically centres the avatar in the same footprint
+
+  if (avatarId) {
+    return (
+      <g>
+        <defs>
+          <clipPath id={clipId}>
+            <circle cx={cx} cy={cy} r={AVATAR_R} />
+          </clipPath>
+        </defs>
+        {/* Drop-target dashed ring */}
+        {isDropTarget && (
+          <circle cx={cx} cy={cy} r={AVATAR_R + 10} fill="none"
+            stroke="#1a1a1a" strokeWidth={2} strokeDasharray="4 3" opacity={0.5} />
+        )}
+        {/* Avatar image clipped to circle */}
+        <image
+          href={avatarUrl(avatarId)}
+          x={cx - AVATAR_R} y={cy - AVATAR_R}
+          width={AVATAR_R * 2} height={AVATAR_R * 2}
+          clipPath={`url(#${clipId})`}
+        />
+        {/* Highlight ring when selected for share or is drop target */}
+        {(highlighted || isDropTarget) && (
+          <circle cx={cx} cy={cy} r={AVATAR_R} fill="none"
+            stroke="#1a1a1a" strokeWidth={2} />
+        )}
+        {/* Name */}
+        <text x={x} y={y + 26} textAnchor="middle"
+          style={{ fontSize: '10px', fontWeight: 600, fontFamily: 'system-ui, sans-serif', fill: '#1a1a1a', pointerEvents: 'none' } as React.CSSProperties}>
+          {name.length > 8 ? name.slice(0, 7) + '…' : name}
+        </text>
+      </g>
+    )
+  }
+
+  // ── Generic head + shoulders ──────────────────────────────────────────────
   const fill   = isDropTarget ? '#1a1a1a' : highlighted ? '#555' : '#e8e8e8'
   const stroke = isDropTarget || highlighted ? '#1a1a1a' : '#ccc'
 
@@ -131,7 +178,14 @@ function Seat({ participant, x, y, isDropTarget, highlighted, onTap }: {
   return (
     <g ref={setNodeRef as unknown as React.Ref<SVGGElement>} onClick={onTap} style={{ cursor: 'pointer' }}>
       <circle cx={x} cy={y - 8} r={36} fill="transparent" />
-      <PersonIcon x={x} y={y} name={participant.name} highlighted={highlighted} isDropTarget={isDropTarget} />
+      <PersonIcon
+        x={x} y={y}
+        name={participant.name}
+        highlighted={highlighted}
+        isDropTarget={isDropTarget}
+        avatarId={participant.avatar_id}
+        participantId={participant.id}
+      />
     </g>
   )
 }
@@ -316,6 +370,118 @@ const editPanelStyle: React.CSSProperties = {
   boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
 }
 
+// ─── Avatar picker modal ──────────────────────────────────────────────────────
+// Opens when a person icon is tapped with no active item — lets anyone pick
+// or change that participant's avatar. Writes straight to Supabase.
+
+const AVATAR_COUNT = 20
+
+function AvatarPickerModal({ participant, onClose }: {
+  participant: import('../types/entities').Participant
+  onClose: () => void
+}) {
+  const { setParticipantAvatar } = useTab()
+
+  function pick(id: number) {
+    setParticipantAvatar(participant.id, id)
+    onClose()
+  }
+
+  function clear() {
+    setParticipantAvatar(participant.id, null)
+    onClose()
+  }
+
+  return (
+    /* Backdrop */
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '1rem',
+      }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      {/* Card */}
+      <div style={{
+        background: 'white', borderRadius: 20,
+        padding: '1.25rem 1.25rem 1rem',
+        width: '100%', maxWidth: 320,
+        boxShadow: '0 16px 48px rgba(0,0,0,0.22)',
+        display: 'flex', flexDirection: 'column', gap: 12,
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1a1a1a' }}>
+            {participant.name}
+          </span>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}
+          >✕</button>
+        </div>
+
+        {/* Avatar grid — 4 columns matching source layout */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8,
+        }}>
+          {Array.from({ length: AVATAR_COUNT }, (_, i) => i + 1).map(id => {
+            const selected = participant.avatar_id === id
+            return (
+              <button
+                key={id}
+                onClick={() => pick(id)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  padding: 2, borderRadius: '50%',
+                  outline: selected ? '2.5px solid #1a1a1a' : '2.5px solid transparent',
+                  outlineOffset: 2,
+                }}
+              >
+                <img
+                  src={avatarUrl(id)}
+                  alt={`Avatar ${id}`}
+                  width={56} height={56}
+                  style={{ borderRadius: '50%', display: 'block' }}
+                />
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Clear + Cancel row */}
+        <div style={{ display: 'flex', gap: 8, paddingTop: 2 }}>
+          {participant.avatar_id && (
+            <button
+              onClick={clear}
+              style={{
+                flex: 1, padding: '0.45rem',
+                background: 'none', border: '1.5px solid #e8e8e8',
+                borderRadius: 10, cursor: 'pointer',
+                fontSize: '0.82rem', color: '#888',
+              }}
+            >
+              Remove avatar
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '0.45rem',
+              background: '#1a1a1a', color: 'white',
+              border: 'none', borderRadius: 10, cursor: 'pointer',
+              fontSize: '0.82rem', fontWeight: 600,
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Add inventory item ───────────────────────────────────────────────────────
 
 function AddInventoryItem({ onAdd }: { onAdd: (name: string, price: number, emoji: string) => void }) {
@@ -434,6 +600,7 @@ export default function TableTabView() {
 
   const [activeDragItem, setActiveDragItem] = useState<InventoryItem | null>(null)
   const [tappedItem, setTappedItem]         = useState<InventoryItem | null>(null)
+  const [avatarPickerFor, setAvatarPickerFor] = useState<import('../types/entities').Participant | null>(null)
   const [shareZonePending, setShareZonePending] = useState<InventoryItem | null>(null)
   const [shareZonePeople, setShareZonePeople]   = useState<string[]>([])
   const [overId, setOverId] = useState<string | null>(null)
@@ -541,7 +708,9 @@ export default function TableTabView() {
 
   function handleTapSeat(participant: Participant) {
     if (shareZonePending) { toggleSharePerson(participant.id); return }
-    if (tappedItem) { assignToPerson(tappedItem, participant.id); setTappedItem(null) }
+    if (tappedItem) { assignToPerson(tappedItem, participant.id); setTappedItem(null); return }
+    // Nothing active — open avatar picker for this participant
+    setAvatarPickerFor(participant)
   }
 
   function handleTapShareZone() {
@@ -693,6 +862,14 @@ export default function TableTabView() {
         </div>
 
       </div>{/* end flex column wrapper */}
+
+      {/* Avatar picker — rendered outside the SVG as an HTML overlay */}
+      {avatarPickerFor && (
+        <AvatarPickerModal
+          participant={avatarPickerFor}
+          onClose={() => setAvatarPickerFor(null)}
+        />
+      )}
 
       <DragOverlay>
         {activeDragItem && (

@@ -58,6 +58,7 @@ export type Participant = {
   id: string
   tab_id: string
   name: string
+  avatar_id?: number   // 1-20, maps to /avatars/avatar-NN.webp; null = generic icon
   created_at: string
 }
 
