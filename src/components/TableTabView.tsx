@@ -223,7 +223,6 @@ function InventoryCard({ item, selected, onTap, onEdit }: {
   item: InventoryItem; selected: boolean; onTap: () => void; onEdit: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id, data: { item } })
-  // Stored emoji wins; fall back to name-based guess
   const emoji = item.emoji ?? itemEmoji(item.name)
 
   return (
@@ -231,42 +230,41 @@ function InventoryCard({ item, selected, onTap, onEdit }: {
       ref={setNodeRef}
       style={{
         ...cardStyle,
-        position: 'relative',
         transform: CSS.Translate.toString(transform),
         opacity: isDragging ? 0.3 : 1,
         outline: selected ? '2.5px solid #1a1a1a' : 'none',
         outlineOffset: '2px',
-        background: selected ? '#f5f5f5' : 'white',
+        background: selected ? '#f0f0f0' : 'white',
       }}
       {...listeners} {...attributes}
       onClick={onTap}
     >
-      {/* Edit button — stopPropagation so it doesn't trigger onTap or drag */}
+      <span style={{ fontSize: '1.1rem', lineHeight: 1, flexShrink: 0 }}>{emoji}</span>
+      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap' }}>{item.name}</span>
+      <span style={{ width: 1, height: 12, background: '#e0e0e0', flexShrink: 0 }} />
+      <span style={{ fontSize: '0.7rem', color: '#bbb', whiteSpace: 'nowrap' }}>{formatRands(item.unitPrice)}</span>
+      {/* Edit — stopPropagation so it doesn't fire onTap or wake the drag */}
       <button
         style={editBtnStyle}
         onClick={e => { e.stopPropagation(); onEdit() }}
-        onPointerDown={e => e.stopPropagation()}  // prevent dnd-kit from seeing this pointer
+        onPointerDown={e => e.stopPropagation()}
         aria-label={`Edit ${item.name}`}
       >
         ✎
       </button>
-      <span style={{ fontSize: '1.5rem' }}>{emoji}</span>
-      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#1a1a1a', textAlign: 'center', lineHeight: 1.2 }}>{item.name}</span>
-      <span style={{ fontSize: '0.68rem', color: '#999' }}>{formatRands(item.unitPrice)}</span>
     </div>
   )
 }
 
 const cardStyle: React.CSSProperties = {
-  display: 'flex', flexDirection: 'column', alignItems: 'center',
-  padding: '0.5rem 0.65rem', border: '1.5px solid #e0e0e0',
-  borderRadius: 12, background: 'white', minWidth: 68,
-  cursor: 'grab', userSelect: 'none', gap: 3,
+  display: 'flex', flexDirection: 'row', alignItems: 'center',
+  gap: 6, padding: '7px 10px 7px 12px',
+  border: '1.5px solid #e0e0e0', borderRadius: 99,
+  background: 'white', cursor: 'grab', userSelect: 'none',
   boxShadow: '0 1px 3px rgba(0,0,0,0.06)', flexShrink: 0,
-  // touch-action: none is critical for mobile — without it the browser
-  // intercepts the touchstart for scroll before dnd-kit can activate a drag.
+  // touch-action: none is critical for mobile
   touchAction: 'none',
-  willChange: 'transform', // GPU hint for smooth movement
+  willChange: 'transform',
 }
 
 // ─── Edit inventory item panel ────────────────────────────────────────────────
@@ -349,12 +347,30 @@ function AddInventoryItem({ onAdd }: { onAdd: (name: string, price: number) => v
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
   const nameRef = useRef<HTMLInputElement>(null)
+  const formRef = useRef<HTMLDivElement>(null)
+
+  // Collapse and cancel if the user taps anywhere outside the form
+  useEffect(() => {
+    if (!active) return
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      if (formRef.current && !formRef.current.contains(e.target as Node)) {
+        setActive(false)
+        setName('')
+        setPrice('')
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('touchstart', handleOutside, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('touchstart', handleOutside)
+    }
+  }, [active])
 
   function submit() {
     const p = parseRands(price)
     if (!name.trim() || p === null || p <= 0) return
     onAdd(name, p)
-    // Persist to venue menu immediately — don't wait for assignment
     if (supabaseVenueId) upsertMenuItem(supabaseVenueId, name.trim(), p)
     setName(''); setPrice(''); setActive(false)
   }
@@ -362,22 +378,22 @@ function AddInventoryItem({ onAdd }: { onAdd: (name: string, price: number) => v
   if (!active) {
     return (
       <button
-        style={{ ...cardStyle, border: '1.5px dashed #ccc', color: '#bbb', background: 'none', boxShadow: 'none', cursor: 'pointer' }}
+        style={{ ...cardStyle, border: '1.5px dashed #ccc', color: '#bbb', background: 'none', boxShadow: 'none', cursor: 'pointer', touchAction: 'auto' }}
         onClick={() => { setActive(true); setTimeout(() => nameRef.current?.focus(), 40) }}
       >
-        <span style={{ fontSize: '1.3rem' }}>+</span>
-        <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>Add item</span>
+        <span style={{ fontSize: '0.9rem' }}>+</span>
+        <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>Add item</span>
       </button>
     )
   }
 
   return (
-    <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexShrink: 0 }}>
-      <input ref={nameRef} style={miniInput} placeholder="Name" value={name} onChange={e => setName(e.target.value)} />
+    <div ref={formRef} style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
+      <input ref={nameRef} style={miniInput} placeholder="Name" value={name} onChange={e => setName(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && submit()} />
       <input style={{ ...miniInput, width: 72 }} placeholder="R" type="number" value={price}
         onChange={e => setPrice(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
       <button style={miniConfirm} onClick={submit}>Add</button>
-      <button style={miniCancel} onClick={() => setActive(false)}>✕</button>
     </div>
   )
 }
@@ -555,7 +571,7 @@ export default function TableTabView() {
 
       {/* Inventory pool */}
       <div style={{ padding: '0.75rem 1.25rem 0.5rem', borderBottom: '1px solid #f0f0f0' }}>
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, alignItems: 'center', touchAction: 'pan-x' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}>
           {inventoryItems.map(item => (
             <InventoryCard key={item.id} item={item}
               selected={tappedItem?.id === item.id}
@@ -647,9 +663,10 @@ export default function TableTabView() {
       <DragOverlay>
         {activeDragItem && (
           <div style={{ ...cardStyle, opacity: 0.95, boxShadow: '0 8px 24px rgba(0,0,0,0.18)', transform: 'scale(1.08)', cursor: 'grabbing' }}>
-            <span style={{ fontSize: '1.5rem' }}>{activeDragItem.emoji ?? itemEmoji(activeDragItem.name)}</span>
-            <span style={{ fontSize: '0.72rem', fontWeight: 600 }}>{activeDragItem.name}</span>
-            <span style={{ fontSize: '0.68rem', color: '#999' }}>{formatRands(activeDragItem.unitPrice)}</span>
+            <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>{activeDragItem.emoji ?? itemEmoji(activeDragItem.name)}</span>
+            <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>{activeDragItem.name}</span>
+            <span style={{ width: 1, height: 12, background: '#e0e0e0' }} />
+            <span style={{ fontSize: '0.7rem', color: '#bbb' }}>{formatRands(activeDragItem.unitPrice)}</span>
           </div>
         )}
       </DragOverlay>
@@ -660,13 +677,9 @@ export default function TableTabView() {
 // ─── Micro-styles ─────────────────────────────────────────────────────────────
 
 const editBtnStyle: React.CSSProperties = {
-  position: 'absolute',
-  top: 3, right: 3,
-  width: 18, height: 18,
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
   background: 'none', border: 'none', cursor: 'pointer',
-  fontSize: '0.65rem', color: '#bbb', padding: 0, lineHeight: 1,
-  borderRadius: 4,
+  fontSize: '0.65rem', color: '#ccc', padding: '0 0 0 2px',
+  lineHeight: 1, flexShrink: 0,
 }
 
 const miniInput: React.CSSProperties = {
