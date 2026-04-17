@@ -266,12 +266,16 @@ export function TabProvider({ children }: { children: ReactNode }) {
         { event: 'INSERT', schema: 'public', table: 'items', filter: `tab_id=eq.${tabId}` },
         payload => {
           const row = payload.new as Item & { total_price: string | number }
+          const newItem: Item = { ...row, total_price: Number(row.total_price) }
+          // Check foreignness BEFORE setState — stateRef is always current
+          const isForeign = !stateRef.current.items.some(i => i.id === row.id)
           setState(s => {
             if (s.items.some(i => i.id === row.id)) return s   // already have it (our own write)
-            const newItem: Item = { ...row, total_price: Number(row.total_price) }
-            setLastForeignItem(newItem)   // triggers fun toast in TableTabView
             return { ...s, items: [...s.items, newItem] }
           })
+          // setLastForeignItem must be called OUTSIDE setState — calling one setter
+          // inside another setter's updater crashes React (blank screen)
+          if (isForeign) setLastForeignItem(newItem)
         },
       )
       .on(
@@ -301,15 +305,20 @@ export function TabProvider({ children }: { children: ReactNode }) {
       )
 
       // ── item_splits ────────────────────────────────────────────────────────
-      // No tab_id column — filter client-side using known item IDs.
+      // No tab_id column on item_splits, so we can't filter server-side.
+      // We accept all events and dedup by ID only — no item-existence check.
+      // Reason: splits and items are written together; the split event can arrive
+      // on the other client before the item event due to Postgres replication order.
+      // Filtering by known item IDs would silently drop valid splits in that race.
+      // Orphan splits (item not yet in state) are harmless — the calculation engine
+      // ignores splits whose item_id doesn't match a known item.
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'item_splits' },
         payload => {
           const row = payload.new as ItemSplit
           setState(s => {
-            if (!s.items.some(i => i.id === row.item_id)) return s  // not our tab
-            if (s.splits.some(sp => sp.id === row.id)) return s      // already have it
+            if (s.splits.some(sp => sp.id === row.id)) return s  // dedup only
             return { ...s, splits: [...s.splits, row] }
           })
         },
@@ -319,10 +328,12 @@ export function TabProvider({ children }: { children: ReactNode }) {
         { event: 'UPDATE', schema: 'public', table: 'item_splits' },
         payload => {
           const row = payload.new as ItemSplit
-          setState(s => {
-            if (!s.items.some(i => i.id === row.item_id)) return s
-            return { ...s, splits: s.splits.map(sp => sp.id === row.id ? row : sp) }
-          })
+          setState(s => ({
+            ...s,
+            splits: s.splits.some(sp => sp.id === row.id)
+              ? s.splits.map(sp => sp.id === row.id ? row : sp)
+              : [...s.splits, row],  // insert if we missed the original INSERT event
+          }))
         },
       )
       .on(
