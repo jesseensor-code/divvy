@@ -65,6 +65,21 @@ type TabState = {
   inventoryLoaded: boolean
 }
 
+// ─── Self identity helpers ────────────────────────────────────────────────────
+// When a participant joins via link, they can identify themselves as an existing
+// participant (or add themselves as new). This is stored per-tab in localStorage
+// so it persists across page refreshes on the same device.
+
+const SELF_KEY = (tabId: string) => `divvy_self_${tabId}`
+
+export function getSelfParticipantId(tabId: string): string | null {
+  return localStorage.getItem(SELF_KEY(tabId))
+}
+
+export function saveSelfParticipantId(tabId: string, participantId: string) {
+  localStorage.setItem(SELF_KEY(tabId), participantId)
+}
+
 // ─── Context shape ───────────────────────────────────────────────────────────
 
 type TabContextValue = TabState & {
@@ -77,6 +92,13 @@ type TabContextValue = TabState & {
   // Most recently received item from another device — watched by TableTabView
   // to fire the fun toast. Not persisted to localStorage.
   lastForeignItem: Item | null
+
+  // The participant ID this device has identified as "me" — null if not yet
+  // identified or if the user is the creator (who doesn't need to self-identify).
+  selfParticipantId: string | null
+
+  // Set by SelfIdentifyModal once the user picks or creates their participant.
+  setSelfParticipantId: (participantId: string) => void
 
   // Create a brand new tab — called from the Home screen
   createTab: (venueName: string, tabName: string, tipPercent: number, mode: 'pub' | 'restaurant') => string
@@ -183,6 +205,18 @@ export function TabProvider({ children }: { children: ReactNode }) {
 
   // Not persisted — just for triggering the fun toast on other devices
   const [lastForeignItem, setLastForeignItem] = useState<Item | null>(null)
+
+  // Which participant has this device identified as "me"
+  const [selfParticipantId, setSelfParticipantIdState] = useState<string | null>(() => {
+    const tabId = getUrlTabId()
+    return tabId ? getSelfParticipantId(tabId) : null
+  })
+
+  const setSelfParticipantId = useCallback((participantId: string) => {
+    setSelfParticipantIdState(participantId)
+    if (state.tab) saveSelfParticipantId(state.tab.id, participantId)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.tab?.id])
 
   // True while doing the initial remote fetch on a cold device
   const [isLoadingRemote, setIsLoadingRemote] = useState<boolean>(() => {
@@ -633,6 +667,8 @@ export function TabProvider({ children }: { children: ReactNode }) {
       isCreator,
       isLoadingRemote,
       lastForeignItem,
+      selfParticipantId,
+      setSelfParticipantId,
       createTab,
       addParticipant,
       setParticipantAvatar,

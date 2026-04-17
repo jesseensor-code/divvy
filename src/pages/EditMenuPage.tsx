@@ -13,7 +13,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTab, type InventoryItem } from '../context/TabContext'
-import { formatRands } from '../lib/currency'
+import { formatRands, parseRands } from '../lib/currency'
 import { itemEmoji } from '../lib/itemEmoji'
 
 // ─── Toast category options ───────────────────────────────────────────────────
@@ -69,8 +69,8 @@ function EditRow({ item, onSave, onCancel, onDelete }: {
   }, [onCancel])
 
   function submit() {
-    const p = parseFloat(price)
-    if (!name.trim() || isNaN(p) || p <= 0) return
+    const p = parseRands(price)
+    if (!name.trim() || p === null || p <= 0) return
     onSave({
       name: name.trim(),
       unitPrice: p,

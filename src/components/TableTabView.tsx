@@ -26,12 +26,23 @@ import type { Participant } from '../types/entities'
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
 const TABLE_W = 320
-const TABLE_H = 380      // extra height so labels below bottom seats don't clip
 const CX = TABLE_W / 2  // 160
-const CY = 162           // table centre — shifted up to give room below for labels
-const SEAT_RADIUS = 122
-const TABLE_RX = 80      // slightly wider table
-const TABLE_RY = 50      // slightly taller table
+
+// Dynamic table sizing based on participant count.
+// For 1–4 people: compact layout (default). For 5–7: medium. 8+: large.
+// Returns all geometry constants so SVG can be fully responsive.
+function tableLayout(participantCount: number) {
+  // Scale up the radius so seats don't crowd as numbers grow
+  const n = Math.max(1, participantCount)
+  const seatRadius = n <= 4 ? 122 : n <= 6 ? 138 : n <= 8 ? 150 : 162
+  const tableRX    = n <= 4 ? 80  : n <= 6 ? 90  : n <= 8 ? 100 : 110
+  const tableRY    = n <= 4 ? 50  : n <= 6 ? 56  : n <= 8 ? 62  : 68
+  // CY shifts up proportionally so the bottom-seat labels don't clip
+  const cy         = n <= 4 ? 162 : n <= 6 ? 168 : n <= 8 ? 174 : 180
+  // Total SVG height = cy + seatRadius + label room (50px) + some padding
+  const tableH     = cy + seatRadius + 60
+  return { seatRadius, tableRX, tableRY, cy, tableH }
+}
 
 // ─── Fun toasts ───────────────────────────────────────────────────────────────
 
@@ -77,15 +88,15 @@ function funToast(itemName: string, itemType?: string): string {
 
 // ─── Seat position ────────────────────────────────────────────────────────────
 
-function seatPosition(index: number, total: number) {
+function seatPosition(index: number, total: number, seatRadius: number, cy: number) {
   const startAngle = -Math.PI * 0.85
   const sweep = Math.PI * 1.7
   const angle = total === 1
     ? -Math.PI / 2
     : startAngle + (sweep / (total - 1)) * index
   return {
-    x: CX + SEAT_RADIUS * Math.cos(angle),
-    y: CY + SEAT_RADIUS * Math.sin(angle),
+    x: CX + seatRadius * Math.cos(angle),
+    y: cy + seatRadius * Math.sin(angle),
   }
 }
 
@@ -99,11 +110,11 @@ function avatarUrl(avatarId: number) {
 
 const AVATAR_R = 24   // radius in SVG units — 48 px diameter at 1:1 scale
 
-function PersonIcon({ x, y, name, highlighted, isDropTarget, avatarId, participantId, itemCount }: {
+function PersonIcon({ x, y, name, highlighted, isDropTarget, avatarId, participantId, itemCount, isSelf }: {
   x: number; y: number; name: string
   highlighted: boolean; isDropTarget: boolean
   avatarId?: number; participantId: string
-  itemCount: number
+  itemCount: number; isSelf: boolean
 }) {
   const clipId = `av-clip-${participantId}`
   const cx = x
@@ -150,6 +161,13 @@ function PersonIcon({ x, y, name, highlighted, isDropTarget, avatarId, participa
             {itemCount} {itemCount === 1 ? 'item' : 'items'}
           </text>
         )}
+        {/* "you" badge */}
+        {isSelf && (
+          <text x={x} y={cy + AVATAR_R + (itemCount > 0 ? 38 : 38)} textAnchor="middle"
+            style={{ ...labelStyle, fontSize: '9px', fontWeight: 700, fill: '#1a1a1a', letterSpacing: '0.04em' }}>
+            you
+          </text>
+        )}
       </g>
     )
   }
@@ -184,15 +202,22 @@ function PersonIcon({ x, y, name, highlighted, isDropTarget, avatarId, participa
           {itemCount} {itemCount === 1 ? 'item' : 'items'}
         </text>
       )}
+      {/* "you" badge */}
+      {isSelf && (
+        <text x={x} y={cy + AVATAR_R + 38} textAnchor="middle"
+          style={{ ...labelStyle, fontSize: '9px', fontWeight: 700, fill: '#1a1a1a', letterSpacing: '0.04em' }}>
+          you
+        </text>
+      )}
     </g>
   )
 }
 
 // ─── Droppable seat ───────────────────────────────────────────────────────────
 
-function Seat({ participant, x, y, isDropTarget, highlighted, itemCount, onTap }: {
+function Seat({ participant, x, y, isDropTarget, highlighted, itemCount, isSelf, onTap }: {
   participant: Participant; x: number; y: number
-  isDropTarget: boolean; highlighted: boolean; itemCount: number; onTap: () => void
+  isDropTarget: boolean; highlighted: boolean; itemCount: number; isSelf: boolean; onTap: () => void
 }) {
   const { setNodeRef } = useDroppable({ id: `seat-${participant.id}`, data: { participantId: participant.id } })
 
@@ -208,6 +233,7 @@ function Seat({ participant, x, y, isDropTarget, highlighted, itemCount, onTap }
         avatarId={participant.avatar_id}
         participantId={participant.id}
         itemCount={itemCount}
+        isSelf={isSelf}
       />
     </g>
   )
@@ -226,12 +252,13 @@ const TABLE_HIGHLIGHT = 'rgba(255,255,255,0.12)'
 const LEG_W = 13
 const LEG_H = 28
 
-function ShareZone({ isDropTarget, hasPending, isItemDragging, onTap }: {
+function ShareZone({ isDropTarget, hasPending, isItemDragging, onTap, cy, tableRX, tableRY }: {
   isDropTarget: boolean; hasPending: boolean; isItemDragging: boolean; onTap: () => void
+  cy: number; tableRX: number; tableRY: number
 }) {
   const { setNodeRef } = useDroppable({ id: 'share-zone' })
 
-  const legY = CY + TABLE_RY - 6   // legs peek out below the table top
+  const legY = cy + tableRY - 6   // legs peek out below the table top
 
   const tableFill = isDropTarget
     ? '#D4A86A'   // lighten on hover
@@ -248,7 +275,7 @@ function ShareZone({ isDropTarget, hasPending, isItemDragging, onTap }: {
       style={{ cursor: hasPending || isItemDragging ? 'pointer' : 'default' }}>
 
       {/* Drop shadow */}
-      <ellipse cx={CX} cy={CY + 9} rx={TABLE_RX + 5} ry={TABLE_RY + 5}
+      <ellipse cx={CX} cy={cy + 9} rx={tableRX + 5} ry={tableRY + 5}
         fill="rgba(0,0,0,0.10)" />
 
       {/* Legs — rendered before table top so they appear behind it */}
@@ -256,7 +283,7 @@ function ShareZone({ isDropTarget, hasPending, isItemDragging, onTap }: {
       <rect x={CX + 17} y={legY} width={LEG_W} height={LEG_H} rx={4} fill={TABLE_EDGE} />
 
       {/* Table top */}
-      <ellipse cx={CX} cy={CY} rx={TABLE_RX} ry={TABLE_RY}
+      <ellipse cx={CX} cy={cy} rx={tableRX} ry={tableRY}
         fill={tableFill}
         stroke={TABLE_EDGE}
         strokeWidth={isDropTarget ? 2.5 : 1.5}
@@ -264,17 +291,17 @@ function ShareZone({ isDropTarget, hasPending, isItemDragging, onTap }: {
       />
 
       {/* Subtle highlight streak */}
-      <ellipse cx={CX - 12} cy={CY - 14} rx={TABLE_RX * 0.5} ry={TABLE_RY * 0.38}
+      <ellipse cx={CX - 12} cy={cy - 14} rx={tableRX * 0.5} ry={tableRY * 0.38}
         fill={TABLE_HIGHLIGHT} />
 
       {/* Context text — only shown when relevant */}
       {isItemDragging && !hasPending && (
         <>
-          <text x={CX} y={CY - 4} textAnchor="middle"
+          <text x={CX} y={cy - 4} textAnchor="middle"
             style={{ ...ts, fontSize: '11px', fontWeight: 700, fill: 'rgba(255,255,255,0.9)' }}>
             drop to share
           </text>
-          <text x={CX} y={CY + 10} textAnchor="middle"
+          <text x={CX} y={cy + 10} textAnchor="middle"
             style={{ ...ts, fontSize: '9px', fill: 'rgba(255,255,255,0.6)' }}>
             splits equally
           </text>
@@ -282,11 +309,11 @@ function ShareZone({ isDropTarget, hasPending, isItemDragging, onTap }: {
       )}
       {hasPending && (
         <>
-          <text x={CX} y={CY - 4} textAnchor="middle"
+          <text x={CX} y={cy - 4} textAnchor="middle"
             style={{ ...ts, fontSize: '11px', fontWeight: 700, fill: 'rgba(255,255,255,0.9)' }}>
             tap people
           </text>
-          <text x={CX} y={CY + 10} textAnchor="middle"
+          <text x={CX} y={cy + 10} textAnchor="middle"
             style={{ ...ts, fontSize: '9px', fill: 'rgba(255,255,255,0.65)' }}>
             to split equally
           </text>
@@ -391,8 +418,8 @@ function EditInventoryPanel({ item, onSave, onClose }: {
   const [emoji, setEmoji] = useState(item.emoji ?? itemEmoji(item.name))
 
   function submit() {
-    const p = parseFloat(price)
-    if (!name.trim() || isNaN(p) || p <= 0) return
+    const p = parseRands(price)
+    if (!name.trim() || p === null || p <= 0) return
     onSave({
       name: name.trim(),
       unitPrice: p,
@@ -675,7 +702,7 @@ const THREE_ROWS_PX = 120
 export default function TableTabView() {
   const { tab, venue, participants, items, splits, inventoryItems, supabaseVenueId,
           inventoryLoaded, markInventoryLoaded,
-          addInventoryItem, addItem, setSplit, lastForeignItem } = useTab()
+          addInventoryItem, addItem, setSplit, lastForeignItem, selfParticipantId } = useTab()
 
   // Per-participant item count — shown under each person's name
   const itemCountByParticipant: Record<string, number> = {}
@@ -739,10 +766,15 @@ export default function TableTabView() {
   // Fire fun toast when another device adds an item.
   // lastForeignItem is set by the realtime handler in TabContext and is never
   // persisted, so it only triggers once per foreign insert.
+  // We read participants.length to get the current layout's cy for toast placement.
+  const participantsLengthRef = useRef(participants.length)
+  useEffect(() => { participantsLengthRef.current = participants.length }, [participants.length])
+
   useEffect(() => {
     if (!lastForeignItem) return
     // Show toast near the centre of the table
-    addToast(funToast(lastForeignItem.name), SVG_W / 2, CY)
+    const { cy } = tableLayout(participantsLengthRef.current)
+    addToast(funToast(lastForeignItem.name), TABLE_W / 2, cy)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastForeignItem])
 
@@ -750,7 +782,8 @@ export default function TableTabView() {
   function getSeatPos(participantId: string) {
     const idx = participants.findIndex(p => p.id === participantId)
     if (idx === -1) return null
-    return seatPosition(idx, participants.length)
+    const { seatRadius: sr, cy } = tableLayout(participants.length)
+    return seatPosition(idx, participants.length, sr, cy)
   }
 
   function addToast(message: string, x: number, y: number) {
@@ -840,7 +873,8 @@ export default function TableTabView() {
 
   if (!tab || !venue) return null
 
-  const seats = participants.map((p, i) => ({ participant: p, ...seatPosition(i, participants.length) }))
+  const { seatRadius, tableRX, tableRY, cy: tableCY, tableH } = tableLayout(participants.length)
+  const seats = participants.map((p, i) => ({ participant: p, ...seatPosition(i, participants.length, seatRadius, tableCY) }))
   const isItemActive = !!activeDragItem || !!tappedItem
   const activeItemName = activeDragItem?.name ?? tappedItem?.name ?? ''
 
@@ -929,16 +963,17 @@ export default function TableTabView() {
 
         {/* ── SVG table — fills remaining height ───────────────────────── */}
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.25rem 0 0', overflow: 'hidden' }}>
-          <div style={{ position: 'relative', width: TABLE_W, height: TABLE_H, flexShrink: 0 }}>
+          <div style={{ position: 'relative', width: TABLE_W, height: tableH, flexShrink: 0 }}>
 
-            <svg width={TABLE_W} height={TABLE_H} viewBox={`0 0 ${TABLE_W} ${TABLE_H}`}
+            <svg width={TABLE_W} height={tableH} viewBox={`0 0 ${TABLE_W} ${tableH}`}
               style={{ overflow: 'visible', display: 'block' }}>
-              <ellipse cx={CX} cy={CY + 6} rx={TABLE_RX + 3} ry={TABLE_RY + 3} fill="rgba(0,0,0,0.04)" />
+              <ellipse cx={CX} cy={tableCY + 6} rx={tableRX + 3} ry={tableRY + 3} fill="rgba(0,0,0,0.04)" />
               {seats.map(({ participant, x, y }) => (
                 <Seat key={participant.id} participant={participant} x={x} y={y}
                   isDropTarget={overId === `seat-${participant.id}`}
                   highlighted={shareZonePeople.includes(participant.id)}
                   itemCount={itemCountByParticipant[participant.id] || 0}
+                  isSelf={participant.id === selfParticipantId}
                   onTap={() => handleTapSeat(participant)} />
               ))}
               <ShareZone
@@ -946,6 +981,9 @@ export default function TableTabView() {
                 hasPending={!!shareZonePending}
                 isItemDragging={!!activeDragItem}
                 onTap={handleTapShareZone}
+                cy={tableCY}
+                tableRX={tableRX}
+                tableRY={tableRY}
               />
             </svg>
 

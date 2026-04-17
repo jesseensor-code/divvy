@@ -6,6 +6,7 @@ import { formatRands } from '../lib/currency'
 import TabSummaryBar from '../components/TabSummaryBar'
 import TableTabView from '../components/TableTabView'
 import BillModal from '../components/BillModal'
+import SelfIdentifyModal from '../components/SelfIdentifyModal'
 
 export default function Tab() {
   const { id } = useParams()
@@ -98,6 +99,9 @@ export default function Tab() {
       {showBill && (
         <BillModal summary={summary} onClose={() => setShowBill(false)} />
       )}
+
+      {/* ── Self-identification ──────────────────────────────────────────── */}
+      <SelfIdentifyModal />
 
     </div>
   )
