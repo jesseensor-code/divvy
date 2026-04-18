@@ -5,13 +5,16 @@ import { buildTabSummary } from '../lib/calculations'
 import { formatRands } from '../lib/currency'
 import TabSummaryBar from '../components/TabSummaryBar'
 import TableTabView from '../components/TableTabView'
+import LockedTabView from '../components/LockedTabView'
 import BillModal from '../components/BillModal'
 import SelfIdentifyModal from '../components/SelfIdentifyModal'
 
 export default function Tab() {
   const { id } = useParams()
-  const { tab, venue, participants, items, splits, isLoadingRemote } = useTab()
+  const { tab, venue, participants, items, splits, isCreator, isLoadingRemote, lockTab } = useTab()
   const [showBill, setShowBill] = useState(false)
+  // Two-step lock: first tap shows warning/confirm if there are unassigned items
+  const [lockArmed, setLockArmed] = useState(false)
 
   if (!tab || !venue) {
     if (isLoadingRemote) {
@@ -28,30 +31,52 @@ export default function Tab() {
     )
   }
 
+  // ── Locked state ───────────────────────────────────────────────────────────
+  // Show the settlement view for everyone — edits are frozen
+  if (tab.status === 'locked') {
+    return (
+      <>
+        <LockedTabView />
+        {/* Self-ID still shown for people who haven't identified yet */}
+        <SelfIdentifyModal />
+      </>
+    )
+  }
+
+  // ── Open state ─────────────────────────────────────────────────────────────
+
   const summary = buildTabSummary(tab, venue, participants, items, splits)
+  const hasUnassigned = summary.unassigned_items.length > 0
 
   async function handleShare() {
     const url = window.location.href
     if (navigator.share) {
       try {
-        await navigator.share({
-          title: 'Divvy',
-          text: `Join the tab at ${venue!.name}`,
-          url,
-        })
+        await navigator.share({ title: 'Divvy', text: `Join the tab at ${venue!.name}`, url })
       } catch { /* user cancelled */ }
     } else {
-      // Fallback: copy link to clipboard
       try { await navigator.clipboard.writeText(url) } catch { }
     }
+  }
+
+  function handleLockTap() {
+    if (hasUnassigned) {
+      // Show warning first, require second tap to confirm
+      setLockArmed(a => !a)
+    } else {
+      lockTab()
+    }
+  }
+
+  function handleLockConfirm() {
+    setLockArmed(false)
+    lockTab()
   }
 
   return (
     <div style={s.page}>
 
-      {/* ── Viewport area ────────────────────────────────────────────────────
-          Everything the user needs to play with fits here.
-          The full summary breakdown lives below the fold (scroll to see).  */}
+      {/* ── Viewport area ──────────────────────────────────────────────────── */}
       <div style={s.viewport}>
 
         <div style={s.header}>
@@ -74,33 +99,54 @@ export default function Tab() {
           </button>
         </div>
 
-        {/* TableTabView fills remaining space between header and total strip */}
+        {/* TableTabView fills remaining space */}
         <div style={s.main}>
           <TableTabView />
         </div>
 
-        {/* Compact total — always visible, tells you where the bill stands */}
+        {/* Compact total strip */}
         {summary.participants.length > 0 && (
-          <div style={s.totalStrip}>
-            <span style={s.totalLabel}>Total</span>
-            <span style={s.totalAmount}>{formatRands(summary.grand_total)}</span>
-            <button style={s.billBtn} onClick={() => setShowBill(true)}>Preview bill</button>
-            <Link to={`/tab/${id}/items`} style={s.editTabLink}>Edit tab</Link>
-            <span style={s.scrollHint}>↓ breakdown</span>
-          </div>
+          <>
+            {/* Unassigned items warning when lock is armed */}
+            {lockArmed && hasUnassigned && (
+              <div style={s.lockWarning}>
+                <span style={s.lockWarningText}>
+                  ⚠️ {summary.unassigned_items.length} item{summary.unassigned_items.length > 1 ? 's' : ''} not assigned.
+                  Close anyway?
+                </span>
+                <button style={s.lockConfirmBtn} onClick={handleLockConfirm}>Yes, close</button>
+                <button style={s.lockCancelBtn} onClick={() => setLockArmed(false)}>Cancel</button>
+              </div>
+            )}
+
+            <div style={s.totalStrip}>
+              <span style={s.totalLabel}>Total</span>
+              <span style={s.totalAmount}>{formatRands(summary.grand_total)}</span>
+              <button style={s.billBtn} onClick={() => setShowBill(true)}>Preview bill</button>
+              <Link to={`/tab/${id}/items`} style={s.editTabLink}>Edit tab</Link>
+              {isCreator && (
+                <button
+                  style={{ ...s.lockBtn, ...(lockArmed && hasUnassigned ? s.lockBtnArmed : {}) }}
+                  onClick={handleLockTap}
+                >
+                  Close tab
+                </button>
+              )}
+              {!isCreator && <span style={s.scrollHint}>↓ breakdown</span>}
+            </div>
+          </>
         )}
       </div>
 
-      {/* ── Full breakdown ───────────────────────────────────────────────────
-          Below the fold. Scroll down to see per-person totals.            */}
+      {/* ── Full breakdown (below fold) ────────────────────────────────────── */}
       <TabSummaryBar summary={summary} />
 
-      {/* ── Bill preview modal ───────────────────────────────────────────── */}
+      {/* ── Bill preview modal ─────────────────────────────────────────────── */}
       {showBill && (
         <BillModal summary={summary} onClose={() => setShowBill(false)} />
       )}
 
-      {/* ── Self-identification ──────────────────────────────────────────── */}
+      {/* ── Self-identification ────────────────────────────────────────────── */}
       <SelfIdentifyModal />
 
     </div>
@@ -142,19 +188,36 @@ const s: Record<string, React.CSSProperties> = {
     flexShrink: 0, whiteSpace: 'nowrap',
   },
   main: {
-    flex: 1,
-    minHeight: 0,
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
+    flex: 1, minHeight: 0, overflow: 'hidden',
+    display: 'flex', flexDirection: 'column',
+  },
+  lockWarning: {
+    display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const,
+    padding: '0.5rem 1.25rem',
+    background: '#fff8e1', borderTop: '1px solid #ffe58f',
+    flexShrink: 0,
+  },
+  lockWarningText: {
+    flex: 1, fontSize: '0.8rem', color: '#b45309',
+  },
+  lockConfirmBtn: {
+    padding: '0.3rem 0.75rem',
+    background: '#1a1a1a', color: 'white',
+    border: 'none', borderRadius: 99,
+    fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
+    flexShrink: 0,
+  },
+  lockCancelBtn: {
+    padding: '0.3rem 0.65rem',
+    background: 'none', color: '#888',
+    border: '1.5px solid #ddd', borderRadius: 99,
+    fontSize: '0.78rem', cursor: 'pointer',
+    flexShrink: 0,
   },
   totalStrip: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
+    display: 'flex', alignItems: 'center', gap: 8,
     padding: '0.6rem 1.25rem',
-    borderTop: '1px solid #f0f0f0',
-    flexShrink: 0,
+    borderTop: '1px solid #f0f0f0', flexShrink: 0,
   },
   totalLabel: {
     fontSize: '0.75rem', fontWeight: 700,
@@ -181,7 +244,15 @@ const s: Record<string, React.CSSProperties> = {
     background: 'none', border: '1.5px solid #e8e8e8',
     borderRadius: 99, padding: '0 9px', height: 26,
     fontSize: '0.7rem', fontWeight: 600, color: '#555',
-    cursor: 'pointer', whiteSpace: 'nowrap' as const,
-    flexShrink: 0,
+    cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0,
+  },
+  lockBtn: {
+    background: 'none', border: '1.5px solid #e8e8e8',
+    borderRadius: 99, padding: '0 9px', height: 26,
+    fontSize: '0.7rem', fontWeight: 600, color: '#555',
+    cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0,
+  },
+  lockBtnArmed: {
+    borderColor: '#f0a020', color: '#b45309',
   },
 }

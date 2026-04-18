@@ -107,6 +107,7 @@ export async function upsertParticipant(participant: Participant): Promise<void>
       tab_id: participant.tab_id,
       name: participant.name,
       avatar_id: participant.avatar_id ?? null,
+      paid: participant.paid ?? false,
       created_at: participant.created_at,
     }, { onConflict: 'id' })
   if (error) console.error('upsertParticipant:', error)
@@ -126,6 +127,22 @@ export async function updateParticipantAvatar(
     .update({ avatar_id: avatarId })
     .eq('id', participantId)
   if (error) console.error('updateParticipantAvatar:', error)
+}
+
+/**
+ * Toggle the paid flag for a participant.
+ * Self-serve (any identified participant can mark themselves) or creator override.
+ * Propagates to all connected devices via the realtime participants subscription.
+ */
+export async function updateParticipantPaid(
+  participantId: string,
+  paid: boolean,
+): Promise<void> {
+  const { error } = await supabase
+    .from('participants')
+    .update({ paid })
+    .eq('id', participantId)
+  if (error) console.error('updateParticipantPaid:', error)
 }
 
 // ─── Items ────────────────────────────────────────────────────────────────────
@@ -238,6 +255,7 @@ export async function fetchTabState(tabId: string): Promise<{
   const participants: Participant[] = (participantRows ?? []).map(p => ({
     ...p,
     avatar_id: p.avatar_id ?? undefined,
+    paid: p.paid ?? false,
   }))
 
   // Fetch items

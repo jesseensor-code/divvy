@@ -28,8 +28,8 @@ import {
 import type { Item, ItemSplit, Participant, Tab, Venue } from '../types/entities'
 import {
   upsertMenuItem, deleteMenuItem, upsertParticipant, updateParticipantAvatar,
-  upsertTab, updateTab, upsertItem, deleteItem, upsertSplit, deleteSplit,
-  fetchTabState,
+  updateParticipantPaid, upsertTab, updateTab, upsertItem, deleteItem,
+  upsertSplit, deleteSplit, fetchTabState,
 } from '../lib/db'
 import { supabase } from '../lib/supabase'
 import { generateId } from '../lib/utils'
@@ -108,6 +108,9 @@ type TabContextValue = TabState & {
 
   // Set (or clear) the avatar for a participant — writes to Supabase immediately
   setParticipantAvatar: (participantId: string, avatarId: number | null) => void
+
+  // Toggle the paid flag — self-serve or creator override
+  markParticipantPaid: (participantId: string, paid: boolean) => void
 
   // Add a line item — anyone can do this
   // emoji is optional and passed through to upsertMenuItem for passive menu building
@@ -403,7 +406,9 @@ export function TabProvider({ children }: { children: ReactNode }) {
           setState(s => ({
             ...s,
             participants: s.participants.map(p =>
-              p.id === row.id ? { ...row, avatar_id: row.avatar_id ?? undefined } : p
+              p.id === row.id
+                ? { ...row, avatar_id: row.avatar_id ?? undefined, paid: row.paid ?? false }
+                : p
             ),
           }))
         },
@@ -479,6 +484,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
       id: generateId(),
       tab_id: state.tab!.id,
       name: name.trim(),
+      paid: false,
       created_at: new Date().toISOString(),
     }
     setState(s => ({ ...s, participants: [...s.participants, participant] }))
@@ -498,6 +504,18 @@ export function TabProvider({ children }: { children: ReactNode }) {
       ),
     }))
     updateParticipantAvatar(participantId, avatarId)
+  }, [])
+
+  // ── markParticipantPaid ────────────────────────────────────────────────────
+
+  const markParticipantPaid = useCallback((participantId: string, paid: boolean) => {
+    setState(s => ({
+      ...s,
+      participants: s.participants.map(p =>
+        p.id === participantId ? { ...p, paid } : p
+      ),
+    }))
+    updateParticipantPaid(participantId, paid)
   }, [])
 
   // ── addItem ────────────────────────────────────────────────────────────────
@@ -672,6 +690,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
       createTab,
       addParticipant,
       setParticipantAvatar,
+      markParticipantPaid,
       addItem,
       setSplit,
       removeSplit,

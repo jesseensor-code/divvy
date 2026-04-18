@@ -59,6 +59,7 @@ export type Participant = {
   tab_id: string
   name: string
   avatar_id?: number   // 1-20, maps to /avatars/avatar-NN.webp; null = generic icon
+  paid: boolean        // has this person settled up? toggled by self or creator
   created_at: string
 }
 
