@@ -248,7 +248,7 @@ export async function fetchTabState(tabId: string): Promise<{
   // Fetch participants
   const { data: participantRows, error: pErr } = await supabase
     .from('participants')
-    .select('id, tab_id, name, avatar_id, created_at')
+    .select('id, tab_id, name, avatar_id, paid, created_at')
     .eq('tab_id', tabId)
     .order('created_at')
   if (pErr) console.error('fetchTabState/participants:', pErr)
