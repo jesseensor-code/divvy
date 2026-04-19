@@ -484,6 +484,57 @@ export function TabProvider({ children }: { children: ReactNode }) {
     return () => { supabase.removeChannel(channel) }
   }, [state.tab?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Menu items realtime subscription ──────────────────────────────────────
+  // Keeps the inventory zone in sync across devices when items are added or
+  // edited via the Edit Menu page (or passively as items are ordered).
+  // Deduplication: skip INSERT if an inventoryItem with the same name already
+  // exists locally — this prevents the creator's own writes from doubling up.
+
+  useEffect(() => {
+    const venueId = state.supabaseVenueId
+    if (!venueId) return
+
+    const channel = supabase
+      .channel(`menu-${venueId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'menu_items', filter: `venue_id=eq.${venueId}` },
+        payload => {
+          const row = payload.new as { name: string; price: number; emoji?: string; type?: string }
+          setState(s => {
+            // Skip if we already have this item by name
+            if (s.inventoryItems.some(inv => inv.name.toLowerCase() === row.name.toLowerCase())) return s
+            const newItem = {
+              id: generateId(),
+              name: row.name,
+              unitPrice: Number(row.price),
+              ...(row.emoji ? { emoji: row.emoji } : {}),
+              ...(row.type  ? { type: row.type }   : {}),
+            }
+            return { ...s, inventoryItems: [...s.inventoryItems, newItem] }
+          })
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'menu_items', filter: `venue_id=eq.${venueId}` },
+        payload => {
+          const row = payload.new as { name: string; price: number; emoji?: string; type?: string }
+          setState(s => ({
+            ...s,
+            inventoryItems: s.inventoryItems.map(inv =>
+              inv.name.toLowerCase() === row.name.toLowerCase()
+                ? { ...inv, unitPrice: Number(row.price), emoji: row.emoji ?? inv.emoji, type: row.type ?? inv.type }
+                : inv
+            ),
+          }))
+        },
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [state.supabaseVenueId])
+
   // ── createTab ──────────────────────────────────────────────────────────────
 
   const createTab = useCallback((

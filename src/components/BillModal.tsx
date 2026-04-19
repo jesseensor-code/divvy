@@ -6,7 +6,7 @@
  * Designed to look like a printed thermal receipt.
  */
 
-import type { TabSummary } from '../types/derived'
+import type { TabSummary, ItemWithSplits } from '../types/derived'
 import { formatRands } from '../lib/currency'
 
 type Props = {
@@ -17,6 +17,7 @@ type Props = {
 const DASH = '─'
 function dashes(n = 32) { return DASH.repeat(n) }
 
+// Two-column row — used for totals section
 function Row({ left, right, bold }: { left: string; right: string; bold?: boolean }) {
   return (
     <div style={{
@@ -34,8 +35,45 @@ function Row({ left, right, bold }: { left: string; right: string; bold?: boolea
   )
 }
 
+// Three-column row — used for line items with qty > 1
+// left: "Red Wine ×3"   mid: "R50"   right: "R150"
+function ItemRow({ name, qty, unitPrice, total }: {
+  name: string; qty: number; unitPrice: number; total: number
+}) {
+  return (
+    <div style={{ display: 'flex', gap: 6, lineHeight: 1.5 }}>
+      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {name}{qty > 1 ? ` ×${qty}` : ''}
+      </span>
+      {qty > 1 && (
+        <span style={{ whiteSpace: 'nowrap', color: '#999' }}>{formatRands(unitPrice)}</span>
+      )}
+      <span style={{ whiteSpace: 'nowrap' }}>{formatRands(total)}</span>
+    </div>
+  )
+}
+
+// Group items by name + unit price so duplicates are shown as "Beer ×3 R45 R135"
+type GroupedItem = { name: string; unitPrice: number; qty: number; total: number }
+
+function groupItems(items: ItemWithSplits[]): GroupedItem[] {
+  const map = new Map<string, GroupedItem>()
+  for (const item of items) {
+    const key = `${item.name.toLowerCase()}__${item.total_price}`
+    const existing = map.get(key)
+    if (existing) {
+      existing.qty++
+      existing.total += item.total_price
+    } else {
+      map.set(key, { name: item.name, unitPrice: item.total_price, qty: 1, total: item.total_price })
+    }
+  }
+  return Array.from(map.values())
+}
+
 export default function BillModal({ summary, onClose }: Props) {
   const { tab, venue, items, grand_subtotal, grand_total } = summary
+  const grouped = groupItems(items)
   const tipAmount = grand_total - grand_subtotal
   const dateStr = new Date().toLocaleDateString('en-ZA', {
     day: '2-digit', month: 'short', year: 'numeric',
@@ -57,16 +95,18 @@ export default function BillModal({ summary, onClose }: Props) {
 
         <div style={s.divider}>{dashes()}</div>
 
-        {/* Line items */}
+        {/* Line items — grouped by name + price */}
         <div style={s.items}>
-          {items.length === 0 ? (
+          {grouped.length === 0 ? (
             <div style={s.emptyNote}>No items on this tab yet.</div>
           ) : (
-            items.map(item => (
-              <Row
-                key={item.id}
-                left={item.name}
-                right={formatRands(item.total_price)}
+            grouped.map((g, i) => (
+              <ItemRow
+                key={i}
+                name={g.name}
+                qty={g.qty}
+                unitPrice={g.unitPrice}
+                total={g.total}
               />
             ))
           )}

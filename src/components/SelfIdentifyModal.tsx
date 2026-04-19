@@ -34,13 +34,14 @@ export default function SelfIdentifyModal() {
     tab,
   } = useTab()
 
-  const [view, setView] = useState<'pick' | 'new'>('pick')
+  // Creators start on the add-new form — the table is empty when they arrive
+  const [view, setView] = useState<'pick' | 'new'>(isCreator ? 'new' : 'pick')
   const [newName, setNewName] = useState('')
   const [pendingAvatarId, setPendingAvatarId] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Don't show if: creator, already identified, still loading, or no tab
-  if (!tab || isCreator || isLoadingRemote || selfParticipantId) return null
+  // Don't show if: already identified, still loading, or no tab
+  if (!tab || isLoadingRemote || selfParticipantId) return null
 
   function handlePick(participant: Participant) {
     setSelfParticipantId(participant.id)
@@ -63,8 +64,13 @@ export default function SelfIdentifyModal() {
         {/* Header */}
         <div style={s.header}>
           <p style={s.venue}>{tab.name}</p>
-          <h2 style={s.title}>Who are you?</h2>
-          <p style={s.sub}>Identify yourself to track what you've ordered.</p>
+          <h2 style={s.title}>{isCreator ? 'Add yourself' : 'Who are you?'}</h2>
+          <p style={s.sub}>
+            {isCreator
+              ? 'Add yourself to the table so your orders are tracked.'
+              : 'Identify yourself to track what you\'ve ordered.'
+            }
+          </p>
         </div>
 
         {view === 'pick' ? (
@@ -140,7 +146,9 @@ export default function SelfIdentifyModal() {
             />
 
             <div style={s.newFormActions}>
-              <button style={s.backBtn} onClick={() => setView('pick')}>← Back</button>
+              {!isCreator && (
+                <button style={s.backBtn} onClick={() => setView('pick')}>← Back</button>
+              )}
               <button
                 style={{ ...s.joinBtn, opacity: newName.trim() ? 1 : 0.45 }}
                 onClick={handleAddNew}
