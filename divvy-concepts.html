@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Divvy — Design Concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0a;
+    color: #fff;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    padding: 40px 20px 80px;
+    min-height: 100vh;
+  }
+
+  .page-header {
+    text-align: center;
+    margin-bottom: 64px;
+  }
+  .page-header h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 2.2rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #fff 40%, #888);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .page-header p {
+    color: #666;
+    font-size: 0.95rem;
+    max-width: 500px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  .concept-section {
+    margin-bottom: 80px;
+  }
+  .concept-label {
+    text-align: center;
+    margin-bottom: 32px;
+  }
+  .concept-tag {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .concept-label h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .concept-label p {
+    color: #777;
+    font-size: 0.88rem;
+    max-width: 520px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+  .concept-label .tokens {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 14px;
+  }
+  .token {
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #aaa;
+  }
+
+  .screens-row {
+    display: flex;
+    gap: 28px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .phone-wrap {
+    text-align: center;
+  }
+  .screen-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 10px;
+  }
+
+  .phone {
+    width: 300px;
+    height: 620px;
+    border-radius: 38px;
+    border: 6px solid #222;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+    background: #111;
+    flex-shrink: 0;
+  }
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 6px;
+    background: #333;
+    border-radius: 3px;
+    z-index: 100;
+  }
+  .phone-inner {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ─────────────────────────────────────────────────────── */
+  /* CONCEPT A — LAST CALL (Amber / Warm Dark) */
+  /* ─────────────────────────────────────────────────────── */
+
+  .a { --bg: #0D0A07; --surface: #1C1510; --surface2: #241C14;
+       --accent: #E8A030; --accent-rgb: 232,160,48;
+       --text: #F0E8DC; --text-dim: #7A6A58; --border: rgba(255,220,150,0.08);
+       --pill-bg: #1E1812; --pill-border: rgba(232,160,48,0.25);
+       --font: 'DM Sans', system-ui, sans-serif; }
+
+  /* CONCEPT B — NEON HOUSE (Electric Lime / Ultra Dark) */
+  .b { --bg: #070711; --surface: #0F0F1E; --surface2: #181828;
+       --accent: #AAFF45; --accent-rgb: 170,255,69;
+       --text: #FFFFFF; --text-dim: #55558A; --border: rgba(255,255,255,0.06);
+       --pill-bg: #111120; --pill-border: rgba(170,255,69,0.2);
+       --font: 'Space Grotesk', system-ui, sans-serif; }
+
+  /* CONCEPT C — SMOKE & CORAL (Deep Charcoal / Coral) */
+  .c { --bg: #0F0F0F; --surface: #1A1A1A; --surface2: #232323;
+       --accent: #FF6240; --accent-rgb: 255,98,64;
+       --text: #F5F5F5; --text-dim: #888; --border: rgba(255,255,255,0.07);
+       --pill-bg: #1E1E1E; --pill-border: rgba(255,98,64,0.2);
+       --font: 'DM Sans', system-ui, sans-serif; }
+
+  .phone-inner { font-family: var(--font); }
+
+  /* Shared layout atoms */
+  .p-bg { background: var(--bg); width: 100%; height: 100%; display: flex; flex-direction: column; }
+  .p-header {
+    padding: 24px 18px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .p-venue {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 3px;
+  }
+  .p-edit-btn {
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 6px;
+  }
+  .p-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .p-invite-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text);
+    border: 1.5px solid var(--border);
+    border-radius: 99px;
+    padding: 6px 12px;
+    flex-shrink: 0;
+  }
+
+  /* Inventory zone */
+  .inv-zone {
+    padding: 10px 14px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .filter-chips {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  .chip {
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .chip.active {
+    background: rgba(var(--accent-rgb), 0.15);
+    border-color: rgba(var(--accent-rgb), 0.4);
+    color: var(--accent);
+  }
+  .pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .pill {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--pill-bg);
+    border: 1px solid var(--pill-border);
+    border-radius: 99px;
+    padding: 5px 9px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .pill .pill-price { color: var(--text-dim); font-weight: 500; }
+  .pill-add {
+    border-style: dashed;
+    color: var(--text-dim);
+    background: transparent;
+  }
+
+  /* SVG table area */
+  .table-zone {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  /* Bottom strip */
+  .total-strip {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+    background: var(--bg);
+  }
+  .total-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-dim); }
+  .total-amt { font-size: 0.95rem; font-weight: 800; color: var(--text); flex: 1; }
+  .strip-btn {
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 99px;
+    border: 1.5px solid var(--border);
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+  .strip-btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+  }
+
+  /* Summary bar peaking at bottom */
+  .summary-peek {
+    padding: 8px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.7rem;
+  }
+  .summary-name { color: var(--text); font-weight: 600; }
+  .summary-amt { color: var(--accent); font-weight: 700; }
+
+  /* ── CREATE SCREEN shared ── */
+  .create-bg {
+    background: var(--bg);
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 28px 18px 20px;
+  }
+  .back-row {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .create-headline {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 6px;
+  }
+  .create-sub {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    margin-bottom: 28px;
+    line-height: 1.5;
+  }
+  .field-group { margin-bottom: 14px; }
+  .field-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 5px;
+  }
+  .field-input {
+    width: 100%;
+    padding: 11px 13px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text);
+    font-family: var(--font);
+  }
+  .field-input.focused { border-color: rgba(var(--accent-rgb), 0.6); }
+  .tip-row { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tip-btn {
+    flex: 1;
+    padding: 9px 4px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    font-family: var(--font);
+  }
+  .tip-btn.selected {
+    background: rgba(var(--accent-rgb), 0.15);
+    border-color: rgba(var(--accent-rgb), 0.5);
+    color: var(--accent);
+  }
+  .mode-row { display: flex; gap: 8px; margin-bottom: auto; }
+  .mode-btn {
+    flex: 1;
+    padding: 14px 8px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    text-align: center;
+    font-family: var(--font);
+    cursor: pointer;
+  }
+  .mode-btn .mode-icon { font-size: 1.6rem; margin-bottom: 4px; }
+  .mode-btn .mode-name { font-size: 0.75rem; font-weight: 700; color: var(--text); }
+  .mode-btn .mode-desc { font-size: 0.6rem; color: var(--text-dim); margin-top: 2px; }
+  .mode-btn.selected {
+    background: rgba(var(--accent-rgb), 0.12);
+    border-color: rgba(var(--accent-rgb), 0.45);
+  }
+  .cta-btn {
+    margin-top: 20px;
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    border: none;
+    border-radius: 14px;
+    font-family: var(--font);
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #000;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  /* Add person strip */
+  .add-person-strip {
+    padding: 6px 14px 8px;
+    flex-shrink: 0;
+  }
+  .add-person-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    width: 100%;
+    padding: 7px;
+    border: 1.5px dashed rgba(var(--accent-rgb), 0.2);
+    border-radius: 99px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text-dim);
+    background: none;
+    font-family: var(--font);
+  }
+
+  /* ── Concept-specific tweaks ── */
+
+  /* A: warmer inner header gradient */
+  .a .p-bg {
+    background: linear-gradient(180deg, #0F0B07 0%, var(--bg) 100%);
+  }
+  .a .create-bg {
+    background: linear-gradient(180deg, #0F0B07 0%, var(--bg) 100%);
+  }
+  .a .table-zone::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -55%);
+    width: 220px;
+    height: 180px;
+    background: radial-gradient(circle, rgba(232,160,48,0.08) 0%, transparent 70%);
+    pointer-events: none;
+    border-radius: 50%;
+  }
+
+  /* B: stark, electric */
+  .b .pill { font-family: 'Space Grotesk', monospace; }
+  .b .table-zone::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -55%);
+    width: 200px;
+    height: 160px;
+    background: radial-gradient(circle, rgba(170,255,69,0.05) 0%, transparent 70%);
+    pointer-events: none;
+    border-radius: 50%;
+  }
+  .b .create-headline { font-family: 'Space Grotesk', sans-serif; }
+  .b .total-strip { border-top-color: rgba(170,255,69,0.08); }
+
+  /* C: cards with subtle elevation */
+  .c .summary-peek {
+    background: linear-gradient(180deg, var(--surface2) 0%, var(--surface) 100%);
+  }
+  .c .table-zone::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -55%);
+    width: 220px;
+    height: 180px;
+    background: radial-gradient(circle, rgba(255,98,64,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    border-radius: 50%;
+  }
+
+  /* Divider */
+  .concept-divider {
+    border: none;
+    border-top: 1px solid #1a1a1a;
+    margin: 80px 0;
+  }
+
+  /* Notes panel */
+  .notes {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 20px;
+    max-width: 680px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .note {
+    flex: 1;
+    min-width: 160px;
+    max-width: 200px;
+    background: #111;
+    border: 1px solid #1e1e1e;
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 0.72rem;
+    line-height: 1.6;
+    color: #666;
+  }
+  .note strong { display: block; color: #aaa; margin-bottom: 4px; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>Divvy — Design Concepts</h1>
+  <p>Three distinct directions for the pub-session overhaul. Each shows the Create screen and an Active Tab with 6 people around a redesigned table.</p>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- CONCEPT A — LAST CALL -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+<div class="concept-section">
+  <div class="concept-label">
+    <div class="concept-tag" style="background:rgba(232,160,48,0.12);color:#E8A030;border:1px solid rgba(232,160,48,0.25);">Direction A</div>
+    <h2 style="color:#E8A030;">Last Call</h2>
+    <p>Warm amber on near-black. Feels like a dimly lit craft pub — intimate, a bit golden. Low-key premium without being stuffy. The system-ui font stays clean; the warmth comes from colour and surface tones.</p>
+    <div class="tokens">
+      <span class="token">Bg #0D0A07</span>
+      <span class="token">Accent #E8A030</span>
+      <span class="token">DM Sans</span>
+      <span class="token">Amber glow table</span>
+      <span class="token">Filter chips</span>
+    </div>
+  </div>
+
+  <div class="screens-row">
+
+    <!-- A: Create -->
+    <div class="phone-wrap">
+      <div class="screen-label">Create tab</div>
+      <div class="phone a">
+        <div class="phone-inner a">
+          <div class="create-bg" style="--font:'DM Sans',system-ui,sans-serif">
+            <div class="back-row">← Home</div>
+            <div class="create-headline" style="color:#F0E8DC">Start a<br>new tab 🍺</div>
+            <div class="create-sub">Where are you lot tonight?</div>
+
+            <div class="field-group">
+              <div class="field-label">Venue</div>
+              <div class="field-input focused" style="border-color:rgba(232,160,48,0.55)">Woodstock Brewery</div>
+            </div>
+            <div class="field-group">
+              <div class="field-label">Tab name</div>
+              <div class="field-input" style="color:#7A6A58">Friday session</div>
+            </div>
+
+            <div class="field-label" style="margin-bottom:6px">Tip</div>
+            <div class="tip-row">
+              <div class="tip-btn">10%</div>
+              <div class="tip-btn selected">12.5%</div>
+              <div class="tip-btn">15%</div>
+              <div class="tip-btn">Custom</div>
+            </div>
+
+            <div class="field-label" style="margin-bottom:6px">Vibe</div>
+            <div class="mode-row">
+              <div class="mode-btn selected">
+                <div class="mode-icon">🍺</div>
+                <div class="mode-name">Pub</div>
+                <div class="mode-desc">Rounds & pints</div>
+              </div>
+              <div class="mode-btn">
+                <div class="mode-icon">🍽️</div>
+                <div class="mode-name">Restaurant</div>
+                <div class="mode-desc">Shared meals</div>
+              </div>
+            </div>
+
+            <div class="cta-btn">Open the tab →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- A: Active tab -->
+    <div class="phone-wrap">
+      <div class="screen-label">Active tab</div>
+      <div class="phone a">
+        <div class="phone-inner a">
+          <div class="p-bg">
+
+            <!-- Header -->
+            <div class="p-header">
+              <div>
+                <div class="p-venue">Woodstock Brewery <span class="p-edit-btn">Edit menu</span></div>
+                <div class="p-title" style="color:#F0E8DC">Friday session</div>
+              </div>
+              <div class="p-invite-btn" style="border-color:rgba(232,160,48,0.2);color:#E8A030">
+                ↑ Invite
+              </div>
+            </div>
+
+            <!-- Inventory -->
+            <div class="inv-zone">
+              <div class="filter-chips">
+                <div class="chip active">All</div>
+                <div class="chip">🍺 Beer</div>
+                <div class="chip">🍔 Food</div>
+                <div class="chip">🍹 Cocktails</div>
+                <div class="chip">🥃 Spirits</div>
+              </div>
+              <div class="pill-row">
+                <div class="pill pill-add" style="border-color:rgba(232,160,48,0.2)">+ Add</div>
+                <div class="pill">🍺 Born Slippy <span class="pill-price">R45</span></div>
+                <div class="pill">🍔 Burger <span class="pill-price">R110</span></div>
+                <div class="pill">🍺 Moose Hammer <span class="pill-price">R60</span></div>
+                <div class="pill">🍗 Chicken <span class="pill-price">R100</span></div>
+              </div>
+            </div>
+
+            <!-- Table zone -->
+            <div class="table-zone">
+              <svg width="288" height="280" viewBox="0 0 288 280" style="overflow:visible;display:block;flex-shrink:0">
+                <!-- Atmosphere glow -->
+                <radialGradient id="glow-a" cx="50%" cy="48%" r="50%">
+                  <stop offset="0%" stop-color="rgba(232,160,48,0.07)"/>
+                  <stop offset="100%" stop-color="rgba(232,160,48,0)"/>
+                </radialGradient>
+                <ellipse cx="144" cy="138" rx="130" ry="110" fill="url(#glow-a)"/>
+
+                <!-- Table shadow -->
+                <ellipse cx="144" cy="148" rx="62" ry="44" fill="rgba(0,0,0,0.35)"/>
+                <!-- Table legs -->
+                <rect x="122" y="177" width="11" height="22" rx="3" fill="#5C3A10"/>
+                <rect x="155" y="177" width="11" height="22" rx="3" fill="#5C3A10"/>
+                <!-- Table top -->
+                <ellipse cx="144" cy="143" rx="60" ry="38" fill="#C4965A" stroke="#9B6E32" stroke-width="1.5"/>
+                <!-- Table highlight -->
+                <ellipse cx="132" cy="132" rx="28" ry="16" fill="rgba(255,255,255,0.1)"/>
+
+                <!-- 6 people, bigger (r=28), tighter to table (radius=115) -->
+                <!-- Cass — top centre (you) -->
+                <g>
+                  <circle cx="144" cy="18" r="32" fill="rgba(232,160,48,0.12)" stroke="rgba(232,160,48,0.4)" stroke-width="1.5"/>
+                  <circle cx="144" cy="18" r="26" fill="#E8805A"/>
+                  <text x="144" y="24" text-anchor="middle" font-size="13" font-weight="800" fill="white" font-family="DM Sans,system-ui">C</text>
+                  <text x="144" y="52" text-anchor="middle" font-size="9.5" font-weight="700" fill="#F0E8DC" font-family="DM Sans,system-ui">Cass</text>
+                  <text x="144" y="63" text-anchor="middle" font-size="7.5" fill="#7A6A58" font-family="DM Sans,system-ui">5 items</text>
+                  <text x="144" y="73" text-anchor="middle" font-size="7" font-weight="700" fill="#E8A030" font-family="DM Sans,system-ui">you</text>
+                </g>
+
+                <!-- Kevin — top right -->
+                <g>
+                  <circle cx="252" cy="78" r="26" fill="#6B8E6B"/>
+                  <text x="252" y="84" text-anchor="middle" font-size="13" font-weight="800" fill="white" font-family="DM Sans,system-ui">K</text>
+                  <text x="252" y="112" text-anchor="middle" font-size="9.5" font-weight="700" fill="#F0E8DC" font-family="DM Sans,system-ui">Kevin</text>
+                  <text x="252" y="123" text-anchor="middle" font-size="7.5" fill="#7A6A58" font-family="DM Sans,system-ui">2 items</text>
+                </g>
+
+                <!-- Oliver — bottom right -->
+                <g>
+                  <circle cx="248" cy="210" r="26" fill="#4A6A8A"/>
+                  <text x="248" y="216" text-anchor="middle" font-size="13" font-weight="800" fill="white" font-family="DM Sans,system-ui">O</text>
+                  <text x="248" y="244" text-anchor="middle" font-size="9.5" font-weight="700" fill="#F0E8DC" font-family="DM Sans,system-ui">Oliver</text>
+                </g>
+
+                <!-- Sonia — bottom centre -->
+                <g>
+                  <circle cx="144" cy="254" r="26" fill="#8A6A4A"/>
+                  <text x="144" y="260" text-anchor="middle" font-size="13" font-weight="800" fill="white" font-family="DM Sans,system-ui">S</text>
+                  <text x="144" y="284" text-anchor="middle" font-size="9.5" font-weight="700" fill="#F0E8DC" font-family="DM Sans,system-ui">Sonia</text>
+                </g>
+
+                <!-- Dean — bottom left -->
+                <g>
+                  <circle cx="40" cy="210" r="26" fill="#444"/>
+                  <text x="40" y="216" text-anchor="middle" font-size="13" font-weight="800" fill="white" font-family="DM Sans,system-ui">D</text>
+                  <text x="40" y="244" text-anchor="middle" font-size="9.5" font-weight="700" fill="#F0E8DC" font-family="DM Sans,system-ui">Dean</text>
+                </g>
+
+                <!-- Jesse — top left -->
+                <g>
+                  <circle cx="36" cy="78" r="26" fill="#8A4A6A"/>
+                  <text x="36" y="84" text-anchor="middle" font-size="13" font-weight="800" fill="white" font-family="DM Sans,system-ui">J</text>
+                  <text x="36" y="112" text-anchor="middle" font-size="9.5" font-weight="700" fill="#F0E8DC" font-family="DM Sans,system-ui">Jesse</text>
+                  <text x="36" y="123" text-anchor="middle" font-size="7.5" fill="#7A6A58" font-family="DM Sans,system-ui">3 items</text>
+                </g>
+              </svg>
+            </div>
+
+            <div class="add-person-strip">
+              <div class="add-person-btn" style="border-color:rgba(232,160,48,0.15)">+ Add person to table</div>
+            </div>
+
+            <!-- Total strip -->
+            <div class="total-strip">
+              <span class="total-label">Total</span>
+              <span class="total-amt" style="color:#F0E8DC">R 495</span>
+              <div class="strip-btn">Preview bill</div>
+              <div class="strip-btn">Edit tab</div>
+              <div class="strip-btn primary" style="background:#E8A030;color:#000">Close tab</div>
+            </div>
+
+            <!-- Summary peek -->
+            <div class="summary-peek">
+              <div class="summary-row">
+                <span class="summary-name" style="color:#F0E8DC">Jesse</span>
+                <span class="summary-amt" style="color:#E8A030">R 186</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><strong>Feel</strong>Warm, intimate. Like the amber glow of a bar at 10pm. Accessible and legible without being clinical.</div>
+    <div class="note"><strong>Table</strong>People are ~25% larger. Table is ~30% smaller. Amber radial glow gives the scene "lighting." Much less empty.</div>
+    <div class="note"><strong>Chips</strong>Filter chips (Beer / Food / Cocktails / Spirits) sit above inventory pills. Keeps long menus manageable without hiding items.</div>
+    <div class="note"><strong>Typography</strong>DM Sans — friendly, rounded, reads cleanly at small sizes. Keeps the accessible energy of the current font.</div>
+  </div>
+</div>
+
+<hr class="concept-divider">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- CONCEPT B — NEON HOUSE -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+<div class="concept-section">
+  <div class="concept-label">
+    <div class="concept-tag" style="background:rgba(170,255,69,0.1);color:#AAFF45;border:1px solid rgba(170,255,69,0.2);">Direction B</div>
+    <h2 style="color:#AAFF45">Neon House</h2>
+    <p>Electric lime on near-black. Pure nightlife energy — bold, a bit cheeky. Space Grotesk gives the whole UI a techy confidence. This direction leans hardest into the "mates out on the lash" brief.</p>
+    <div class="tokens">
+      <span class="token">Bg #070711</span>
+      <span class="token">Accent #AAFF45</span>
+      <span class="token">Space Grotesk</span>
+      <span class="token">Sharp corners</span>
+      <span class="token">Electric contrast</span>
+    </div>
+  </div>
+
+  <div class="screens-row">
+
+    <!-- B: Create -->
+    <div class="phone-wrap">
+      <div class="screen-label">Create tab</div>
+      <div class="phone b">
+        <div class="phone-inner b">
+          <div class="create-bg b" style="background:linear-gradient(160deg,#0C0C1A 0%,#070711 60%)">
+            <div class="back-row" style="color:#55558A">← Back</div>
+
+            <!-- Electric logo mark -->
+            <div style="width:36px;height:36px;background:rgba(170,255,69,0.15);border:1.5px solid rgba(170,255,69,0.3);border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:16px;font-size:1.1rem">⚡</div>
+
+            <div class="create-headline" style="font-family:'Space Grotesk',sans-serif;color:#fff;font-size:1.55rem">Let's split<br><span style="color:#AAFF45">tonight.</span></div>
+            <div class="create-sub" style="color:#55558A;margin-bottom:20px">Where are you drinking?</div>
+
+            <div class="field-group">
+              <div class="field-label" style="color:#55558A">Venue</div>
+              <div class="field-input" style="background:#0F0F1E;border-color:rgba(170,255,69,0.4);font-family:'Space Grotesk',sans-serif;color:#fff;border-radius:8px">Woodstock Brewery</div>
+            </div>
+            <div class="field-group">
+              <div class="field-label" style="color:#55558A">Tab name</div>
+              <div class="field-input" style="background:#0F0F1E;border-color:rgba(255,255,255,0.06);font-family:'Space Grotesk',sans-serif;color:#55558A;border-radius:8px">Friday session</div>
+            </div>
+
+            <div class="field-label" style="color:#55558A;margin-bottom:6px">Tip %</div>
+            <div class="tip-row" style="margin-bottom:16px">
+              <div class="tip-btn" style="background:#0F0F1E;border-color:rgba(255,255,255,0.06);font-family:'Space Grotesk',sans-serif;color:#55558A;border-radius:8px">10</div>
+              <div class="tip-btn selected" style="background:rgba(170,255,69,0.12);border-color:rgba(170,255,69,0.4);font-family:'Space Grotesk',sans-serif;color:#AAFF45;border-radius:8px">12.5</div>
+              <div class="tip-btn" style="background:#0F0F1E;border-color:rgba(255,255,255,0.06);font-family:'Space Grotesk',sans-serif;color:#55558A;border-radius:8px">15</div>
+              <div class="tip-btn" style="background:#0F0F1E;border-color:rgba(255,255,255,0.06);font-family:'Space Grotesk',sans-serif;color:#55558A;border-radius:8px">?</div>
+            </div>
+
+            <div class="mode-row" style="margin-bottom:0">
+              <div class="mode-btn" style="background:#0F0F1E;border-color:rgba(170,255,69,0.35);border-radius:10px">
+                <div class="mode-icon">🍺</div>
+                <div class="mode-name" style="color:#fff;font-family:'Space Grotesk',sans-serif">Pub</div>
+                <div class="mode-desc" style="color:#55558A">Rounds</div>
+              </div>
+              <div class="mode-btn" style="background:#0F0F1E;border-color:rgba(255,255,255,0.06);border-radius:10px">
+                <div class="mode-icon">🍽️</div>
+                <div class="mode-name" style="color:#fff;font-family:'Space Grotesk',sans-serif">Dinner</div>
+                <div class="mode-desc" style="color:#55558A">Meals</div>
+              </div>
+            </div>
+
+            <div class="cta-btn" style="background:#AAFF45;color:#000;font-family:'Space Grotesk',sans-serif;border-radius:10px;margin-top:auto">OPEN TAB →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- B: Active tab -->
+    <div class="phone-wrap">
+      <div class="screen-label">Active tab</div>
+      <div class="phone b">
+        <div class="phone-inner b">
+          <div class="p-bg b" style="background:#070711">
+
+            <div class="p-header" style="border-color:rgba(255,255,255,0.05)">
+              <div>
+                <div class="p-venue" style="color:#55558A">Woodstock Brewery <span class="p-edit-btn" style="border-color:rgba(255,255,255,0.05);color:#55558A">Edit</span></div>
+                <div class="p-title" style="color:#fff;font-family:'Space Grotesk',sans-serif">Friday session</div>
+              </div>
+              <div class="p-invite-btn" style="border-color:rgba(170,255,69,0.25);color:#AAFF45;font-family:'Space Grotesk',sans-serif">
+                ↑ Invite
+              </div>
+            </div>
+
+            <div class="inv-zone" style="border-color:rgba(255,255,255,0.05)">
+              <div class="filter-chips">
+                <div class="chip" style="border-color:rgba(255,255,255,0.05);color:#55558A;background:rgba(170,255,69,0.1);border-color:rgba(170,255,69,0.3);color:#AAFF45">All</div>
+                <div class="chip" style="border-color:rgba(255,255,255,0.05);color:#55558A">🍺 Beer</div>
+                <div class="chip" style="border-color:rgba(255,255,255,0.05);color:#55558A">🍔 Food</div>
+                <div class="chip" style="border-color:rgba(255,255,255,0.05);color:#55558A">🍹 Drinks</div>
+              </div>
+              <div class="pill-row">
+                <div class="pill pill-add" style="border-color:rgba(170,255,69,0.2);color:#55558A;font-family:'Space Grotesk',sans-serif">+ Add</div>
+                <div class="pill" style="background:#111120;border-color:rgba(170,255,69,0.15);font-family:'Space Grotesk',sans-serif;color:#fff">🍺 Born Slippy <span class="pill-price" style="color:#55558A">R45</span></div>
+                <div class="pill" style="background:#111120;border-color:rgba(170,255,69,0.15);font-family:'Space Grotesk',sans-serif;color:#fff">🍔 Burger <span class="pill-price" style="color:#55558A">R110</span></div>
+                <div class="pill" style="background:#111120;border-color:rgba(170,255,69,0.15);font-family:'Space Grotesk',sans-serif;color:#fff">🍺 Moose Hammer <span class="pill-price" style="color:#55558A">R60</span></div>
+              </div>
+            </div>
+
+            <div class="table-zone">
+              <svg width="288" height="280" viewBox="0 0 288 280" style="overflow:visible;display:block;flex-shrink:0">
+                <!-- Electric glow -->
+                <radialGradient id="glow-b" cx="50%" cy="48%" r="50%">
+                  <stop offset="0%" stop-color="rgba(170,255,69,0.06)"/>
+                  <stop offset="100%" stop-color="rgba(170,255,69,0)"/>
+                </radialGradient>
+                <ellipse cx="144" cy="138" rx="130" ry="110" fill="url(#glow-b)"/>
+
+                <!-- Table shadow -->
+                <ellipse cx="144" cy="148" rx="62" ry="44" fill="rgba(0,0,0,0.5)"/>
+                <!-- Legs -->
+                <rect x="122" y="177" width="10" height="20" rx="2" fill="#1A1A2E"/>
+                <rect x="156" y="177" width="10" height="20" rx="2" fill="#1A1A2E"/>
+                <!-- Table top — dark with lime edge -->
+                <ellipse cx="144" cy="143" rx="60" ry="38" fill="#0F0F1E" stroke="rgba(170,255,69,0.3)" stroke-width="1.5"/>
+                <!-- Table text -->
+                <text x="144" y="147" text-anchor="middle" font-size="9" font-weight="700" fill="rgba(170,255,69,0.5)" font-family="Space Grotesk,system-ui" letter-spacing="2">DIVVY</text>
+
+                <!-- Cass — top, you -->
+                <g>
+                  <!-- you ring -->
+                  <circle cx="144" cy="18" r="34" fill="none" stroke="rgba(170,255,69,0.3)" stroke-width="1.5" stroke-dasharray="3 2"/>
+                  <circle cx="144" cy="18" r="27" fill="#2D2D1A"/>
+                  <text x="144" y="24" text-anchor="middle" font-size="14" font-weight="800" fill="#AAFF45" font-family="Space Grotesk,system-ui">C</text>
+                  <text x="144" y="53" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff" font-family="Space Grotesk,system-ui">Cass</text>
+                  <text x="144" y="64" text-anchor="middle" font-size="7" font-weight="700" fill="#AAFF45" font-family="Space Grotesk,system-ui">YOU · 5 items</text>
+                </g>
+
+                <!-- Kevin -->
+                <g>
+                  <circle cx="252" cy="78" r="27" fill="#1A1A2E" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <text x="252" y="84" text-anchor="middle" font-size="14" font-weight="800" fill="#fff" font-family="Space Grotesk,system-ui">K</text>
+                  <text x="252" y="113" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff" font-family="Space Grotesk,system-ui">Kevin</text>
+                  <text x="252" y="124" text-anchor="middle" font-size="7.5" fill="#55558A" font-family="Space Grotesk,system-ui">2 items</text>
+                </g>
+
+                <!-- Oliver -->
+                <g>
+                  <circle cx="248" cy="210" r="27" fill="#1A1A2E" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <text x="248" y="216" text-anchor="middle" font-size="14" font-weight="800" fill="#fff" font-family="Space Grotesk,system-ui">O</text>
+                  <text x="248" y="245" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff" font-family="Space Grotesk,system-ui">Oliver</text>
+                </g>
+
+                <!-- Sonia -->
+                <g>
+                  <circle cx="144" cy="254" r="27" fill="#1A1A2E" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <text x="144" y="260" text-anchor="middle" font-size="14" font-weight="800" fill="#fff" font-family="Space Grotesk,system-ui">S</text>
+                  <text x="144" y="284" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff" font-family="Space Grotesk,system-ui">Sonia</text>
+                </g>
+
+                <!-- Dean -->
+                <g>
+                  <circle cx="40" cy="210" r="27" fill="#1A1A2E" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <text x="40" y="216" text-anchor="middle" font-size="14" font-weight="800" fill="#fff" font-family="Space Grotesk,system-ui">D</text>
+                  <text x="40" y="245" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff" font-family="Space Grotesk,system-ui">Dean</text>
+                </g>
+
+                <!-- Jesse -->
+                <g>
+                  <circle cx="36" cy="78" r="27" fill="#1A1A2E" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <text x="36" y="84" text-anchor="middle" font-size="14" font-weight="800" fill="#fff" font-family="Space Grotesk,system-ui">J</text>
+                  <text x="36" y="113" text-anchor="middle" font-size="9.5" font-weight="700" fill="#fff" font-family="Space Grotesk,system-ui">Jesse</text>
+                  <text x="36" y="124" text-anchor="middle" font-size="7.5" fill="#55558A" font-family="Space Grotesk,system-ui">3 items</text>
+                </g>
+              </svg>
+            </div>
+
+            <div class="add-person-strip">
+              <div class="add-person-btn" style="border-color:rgba(170,255,69,0.15);color:#55558A;font-family:'Space Grotesk',sans-serif">+ Add person to table</div>
+            </div>
+
+            <div class="total-strip" style="border-color:rgba(255,255,255,0.05)">
+              <span class="total-label" style="color:#55558A;font-family:'Space Grotesk',sans-serif">Total</span>
+              <span class="total-amt" style="color:#fff;font-family:'Space Grotesk',sans-serif">R 495</span>
+              <div class="strip-btn" style="border-color:rgba(255,255,255,0.08);color:#55558A;font-family:'Space Grotesk',sans-serif">Bill</div>
+              <div class="strip-btn" style="border-color:rgba(255,255,255,0.08);color:#55558A;font-family:'Space Grotesk',sans-serif">Edit</div>
+              <div class="strip-btn primary" style="background:#AAFF45;color:#000;font-family:'Space Grotesk',sans-serif;font-weight:700">Close</div>
+            </div>
+
+            <div class="summary-peek" style="background:#0F0F1E;border-color:rgba(255,255,255,0.05)">
+              <div class="summary-row">
+                <span style="color:#fff;font-weight:600;font-family:'Space Grotesk',sans-serif;font-size:0.7rem">Jesse</span>
+                <span style="color:#AAFF45;font-weight:700;font-family:'Space Grotesk',sans-serif;font-size:0.7rem">R 186</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><strong>Feel</strong>Bold, electric, slightly antagonistic in the best way. High contrast. Feels like a nightclub receipt, not a banking app.</div>
+    <div class="note"><strong>Table</strong>Table top goes near-black with a lime border — makes it feel like an object in the scene rather than a decorative element. "DIVVY" text branded into it.</div>
+    <div class="note"><strong>You ring</strong>Dashed lime ring around "you" — very identifiable without needing the word "you" under the name.</div>
+    <div class="note"><strong>Typography</strong>Space Grotesk — techy, confident. Wide and slightly geometric. Makes even numbers feel designed.</div>
+  </div>
+</div>
+
+<hr class="concept-divider">
+
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- CONCEPT C — SMOKE & CORAL -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+
+<div class="concept-section">
+  <div class="concept-label">
+    <div class="concept-tag" style="background:rgba(255,98,64,0.1);color:#FF6240;border:1px solid rgba(255,98,64,0.2);">Direction C</div>
+    <h2 style="color:#FF6240">Smoke & Coral</h2>
+    <p>Deep charcoal with a coral/orange accent. The most "product" feeling of the three — could sit in the App Store alongside the grown-up apps, but still has personality. People are in contained cards instead of floating on whitespace.</p>
+    <div class="tokens">
+      <span class="token">Bg #0F0F0F</span>
+      <span class="token">Accent #FF6240</span>
+      <span class="token">DM Sans</span>
+      <span class="token">Card seats</span>
+      <span class="token">Elevated surfaces</span>
+    </div>
+  </div>
+
+  <div class="screens-row">
+
+    <!-- C: Create -->
+    <div class="phone-wrap">
+      <div class="screen-label">Create tab</div>
+      <div class="phone c">
+        <div class="phone-inner c">
+          <div class="create-bg c" style="background:linear-gradient(160deg,#181818 0%,#0F0F0F 100%)">
+            <div class="back-row" style="color:#666">← Back</div>
+
+            <div style="margin-bottom:20px">
+              <div style="font-size:0.65rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#FF6240;margin-bottom:6px">New tab</div>
+              <div class="create-headline" style="color:#F5F5F5;font-size:1.5rem;line-height:1.15">Where are<br>you tonight?</div>
+            </div>
+
+            <div class="field-group">
+              <div class="field-label" style="color:#666">Venue</div>
+              <div class="field-input" style="background:#1A1A1A;border-color:rgba(255,98,64,0.4);border-radius:10px;color:#fff">Woodstock Brewery</div>
+            </div>
+            <div class="field-group">
+              <div class="field-label" style="color:#666">Tab name (optional)</div>
+              <div class="field-input" style="background:#1A1A1A;border-color:rgba(255,255,255,0.06);border-radius:10px;color:#444">Friday session</div>
+            </div>
+
+            <div class="field-label" style="color:#666;margin-bottom:6px">Suggested tip</div>
+            <div class="tip-row" style="margin-bottom:16px">
+              <div class="tip-btn" style="background:#1A1A1A;border-color:rgba(255,255,255,0.06);border-radius:8px;color:#666">10%</div>
+              <div class="tip-btn selected" style="background:rgba(255,98,64,0.12);border-color:rgba(255,98,64,0.4);border-radius:8px;color:#FF6240">12.5%</div>
+              <div class="tip-btn" style="background:#1A1A1A;border-color:rgba(255,255,255,0.06);border-radius:8px;color:#666">15%</div>
+              <div class="tip-btn" style="background:#1A1A1A;border-color:rgba(255,255,255,0.06);border-radius:8px;color:#666">—</div>
+            </div>
+
+            <div class="mode-row" style="margin-bottom:0">
+              <div class="mode-btn selected" style="background:rgba(255,98,64,0.1);border-color:rgba(255,98,64,0.35);border-radius:12px">
+                <div class="mode-icon">🍺</div>
+                <div class="mode-name" style="color:#F5F5F5">Pub</div>
+                <div class="mode-desc" style="color:#666">Rounds & drinks</div>
+              </div>
+              <div class="mode-btn" style="background:#1A1A1A;border-color:rgba(255,255,255,0.06);border-radius:12px">
+                <div class="mode-icon">🍽️</div>
+                <div class="mode-name" style="color:#F5F5F5">Restaurant</div>
+                <div class="mode-desc" style="color:#666">Shared meal</div>
+              </div>
+            </div>
+
+            <div class="cta-btn" style="background:#FF6240;border-radius:12px;margin-top:auto">Open tab →</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- C: Active tab -->
+    <div class="phone-wrap">
+      <div class="screen-label">Active tab</div>
+      <div class="phone c">
+        <div class="phone-inner c">
+          <div class="p-bg c" style="background:#0F0F0F">
+
+            <div class="p-header" style="border-color:rgba(255,255,255,0.06)">
+              <div>
+                <div class="p-venue" style="color:#666">Woodstock Brewery <span class="p-edit-btn" style="border-color:rgba(255,255,255,0.06);color:#666">Edit menu</span></div>
+                <div class="p-title" style="color:#F5F5F5">Friday session</div>
+              </div>
+              <div class="p-invite-btn" style="border-color:rgba(255,255,255,0.08);color:#F5F5F5">
+                ↑ Invite
+              </div>
+            </div>
+
+            <div class="inv-zone" style="border-color:rgba(255,255,255,0.06)">
+              <div class="filter-chips">
+                <div class="chip" style="background:rgba(255,98,64,0.12);border-color:rgba(255,98,64,0.35);color:#FF6240">All</div>
+                <div class="chip" style="border-color:rgba(255,255,255,0.06);color:#666">🍺 Beer</div>
+                <div class="chip" style="border-color:rgba(255,255,255,0.06);color:#666">🍔 Food</div>
+                <div class="chip" style="border-color:rgba(255,255,255,0.06);color:#666">🍹 Cocktails</div>
+              </div>
+              <div class="pill-row">
+                <div class="pill pill-add" style="border-color:rgba(255,98,64,0.2);color:#666">+ Add</div>
+                <div class="pill" style="background:#1A1A1A;border-color:rgba(255,255,255,0.07);color:#F5F5F5">🍺 Born Slippy <span class="pill-price">R45</span></div>
+                <div class="pill" style="background:#1A1A1A;border-color:rgba(255,255,255,0.07);color:#F5F5F5">🍔 Burger <span class="pill-price">R110</span></div>
+                <div class="pill" style="background:#1A1A1A;border-color:rgba(255,255,255,0.07);color:#F5F5F5">🍺 Moose Hammer <span class="pill-price">R60</span></div>
+              </div>
+            </div>
+
+            <!-- Table zone with card-style seats -->
+            <div class="table-zone" style="background:transparent">
+              <svg width="288" height="290" viewBox="0 0 288 290" style="overflow:visible;display:block;flex-shrink:0">
+
+                <!-- Coral radial glow -->
+                <radialGradient id="glow-c" cx="50%" cy="48%" r="50%">
+                  <stop offset="0%" stop-color="rgba(255,98,64,0.06)"/>
+                  <stop offset="100%" stop-color="rgba(255,98,64,0)"/>
+                </radialGradient>
+                <ellipse cx="144" cy="145" rx="130" ry="115" fill="url(#glow-c)"/>
+
+                <!-- Table -->
+                <ellipse cx="144" cy="153" rx="62" ry="44" fill="rgba(0,0,0,0.4)"/>
+                <rect x="124" y="183" width="10" height="20" rx="2" fill="#1A1A1A"/>
+                <rect x="154" y="183" width="10" height="20" rx="2" fill="#1A1A1A"/>
+                <ellipse cx="144" cy="148" rx="60" ry="38" fill="#1A1A1A" stroke="rgba(255,98,64,0.2)" stroke-width="1.5"/>
+                <!-- Table surface texture lines -->
+                <line x1="120" y1="142" x2="168" y2="142" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+                <line x1="112" y1="150" x2="176" y2="150" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+                <line x1="118" y1="158" x2="170" y2="158" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+
+                <!-- Card-style seats — rounded rect containers then circle avatars -->
+                <!-- Cass — top (you) -->
+                <g>
+                  <rect x="112" y="0" width="64" height="56" rx="14" fill="#1C1C1C" stroke="rgba(255,98,64,0.35)" stroke-width="1.5"/>
+                  <circle cx="144" cy="22" r="16" fill="#FF6240"/>
+                  <text x="144" y="27" text-anchor="middle" font-size="10" font-weight="800" fill="white" font-family="DM Sans,system-ui">C</text>
+                  <text x="144" y="40" text-anchor="middle" font-size="8.5" font-weight="700" fill="#F5F5F5" font-family="DM Sans,system-ui">Cass</text>
+                  <text x="144" y="50" text-anchor="middle" font-size="6.5" font-weight="700" fill="#FF6240" font-family="DM Sans,system-ui">you · 5</text>
+                </g>
+
+                <!-- Kevin — top right -->
+                <g>
+                  <rect x="222" y="50" width="60" height="52" rx="14" fill="#1C1C1C" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <circle cx="252" cy="70" r="16" fill="#4A6A8A"/>
+                  <text x="252" y="75" text-anchor="middle" font-size="10" font-weight="800" fill="white" font-family="DM Sans,system-ui">K</text>
+                  <text x="252" y="88" text-anchor="middle" font-size="8.5" font-weight="700" fill="#F5F5F5" font-family="DM Sans,system-ui">Kevin</text>
+                  <text x="252" y="98" text-anchor="middle" font-size="6.5" fill="#666" font-family="DM Sans,system-ui">2 items</text>
+                </g>
+
+                <!-- Oliver — bottom right -->
+                <g>
+                  <rect x="222" y="210" width="60" height="52" rx="14" fill="#1C1C1C" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <circle cx="252" cy="230" r="16" fill="#6B5A8A"/>
+                  <text x="252" y="235" text-anchor="middle" font-size="10" font-weight="800" fill="white" font-family="DM Sans,system-ui">O</text>
+                  <text x="252" y="248" text-anchor="middle" font-size="8.5" font-weight="700" fill="#F5F5F5" font-family="DM Sans,system-ui">Oliver</text>
+                </g>
+
+                <!-- Sonia — bottom -->
+                <g>
+                  <rect x="112" y="250" width="64" height="52" rx="14" fill="#1C1C1C" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <circle cx="144" cy="270" r="16" fill="#6B8A6B"/>
+                  <text x="144" y="275" text-anchor="middle" font-size="10" font-weight="800" fill="white" font-family="DM Sans,system-ui">S</text>
+                  <text x="144" y="288" text-anchor="middle" font-size="8.5" font-weight="700" fill="#F5F5F5" font-family="DM Sans,system-ui">Sonia</text>
+                </g>
+
+                <!-- Dean — bottom left -->
+                <g>
+                  <rect x="6" y="210" width="60" height="52" rx="14" fill="#1C1C1C" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <circle cx="36" cy="230" r="16" fill="#444"/>
+                  <text x="36" y="235" text-anchor="middle" font-size="10" font-weight="800" fill="white" font-family="DM Sans,system-ui">D</text>
+                  <text x="36" y="248" text-anchor="middle" font-size="8.5" font-weight="700" fill="#F5F5F5" font-family="DM Sans,system-ui">Dean</text>
+                </g>
+
+                <!-- Jesse — top left -->
+                <g>
+                  <rect x="6" y="50" width="60" height="52" rx="14" fill="#1C1C1C" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                  <circle cx="36" cy="70" r="16" fill="#8A4A6A"/>
+                  <text x="36" y="75" text-anchor="middle" font-size="10" font-weight="800" fill="white" font-family="DM Sans,system-ui">J</text>
+                  <text x="36" y="88" text-anchor="middle" font-size="8.5" font-weight="700" fill="#F5F5F5" font-family="DM Sans,system-ui">Jesse</text>
+                  <text x="36" y="98" text-anchor="middle" font-size="6.5" fill="#666" font-family="DM Sans,system-ui">3 items</text>
+                </g>
+              </svg>
+            </div>
+
+            <div class="add-person-strip">
+              <div class="add-person-btn" style="border-color:rgba(255,98,64,0.15);color:#666">+ Add person to table</div>
+            </div>
+
+            <div class="total-strip" style="border-color:rgba(255,255,255,0.06)">
+              <span class="total-label" style="color:#666">Total</span>
+              <span class="total-amt" style="color:#F5F5F5">R 495</span>
+              <div class="strip-btn" style="border-color:rgba(255,255,255,0.08);color:#888">Preview bill</div>
+              <div class="strip-btn" style="border-color:rgba(255,255,255,0.08);color:#888">Edit tab</div>
+              <div class="strip-btn primary" style="background:#FF6240">Close tab</div>
+            </div>
+
+            <div class="summary-peek" style="background:#1A1A1A;border-color:rgba(255,255,255,0.06)">
+              <div class="summary-row">
+                <span style="color:#F5F5F5;font-weight:600;font-size:0.7rem">Jesse</span>
+                <span style="color:#FF6240;font-weight:700;font-size:0.7rem">R 186</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note"><strong>Feel</strong>Polished, product-grade. Feels like it could be on the App Store next to Splitwise. The coral accent is warm without being soft.</div>
+    <div class="note"><strong>Card seats</strong>Each person lives in a rounded-rect card. Solves the "floating on whitespace" problem by giving everyone a container. Makes the table scene feel denser and more structured.</div>
+    <div class="note"><strong>Table</strong>Dark surface with subtle grain lines — feels like a real bar table. Coral border at 20% opacity anchors it without being loud.</div>
+    <div class="note"><strong>Trade-off</strong>Card seats take more horizontal space — may need SVG to clip to screen edge on very narrow phones. Worth testing on a 375px screen.</div>
+  </div>
+</div>
+
+<!-- Footer -->
+<div style="text-align:center;color:#333;font-size:0.8rem;margin-top:60px;padding-bottom:40px">
+  Divvy design concepts — for discussion purposes<br>
+  <span style="color:#222">All three directions use the same component structure — table/inventory/total strip — just reskinned</span>
+</div>
+
+</body>
+</html>

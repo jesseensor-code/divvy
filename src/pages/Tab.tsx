@@ -160,12 +160,17 @@ export default function Tab() {
   )
 }
 
+// ─── Design tokens — Last Call (amber / warm dark) ───────────────────────────
+// Surface (#1A1410) is the elevated panel colour.  Header + inventory zone +
+// total strip all share it so they read as one continuous raised layer above
+// the table zone, which sits on the raw page background (#0D0A07).
+
 const s: Record<string, React.CSSProperties> = {
   page: {
     maxWidth: 480,
     margin: '0 auto',
-    fontFamily: 'system-ui, -apple-system, sans-serif',
-    color: '#1a1a1a',
+    fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
+    color: '#F0E8DC',
   },
   viewport: {
     height: '100dvh',
@@ -178,27 +183,31 @@ const s: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '0.85rem 1.25rem 0.65rem',
-    borderBottom: '1px solid #f0f0f0',
+    // No border-bottom — inventory zone directly below shares the same surface
+    background: '#1A1410',
     flexShrink: 0,
+    position: 'relative',
+    zIndex: 10,
   },
   venue: {
-    margin: 0, fontSize: '0.7rem', color: '#bbb',
+    margin: 0, fontSize: '0.7rem', color: '#7A6A58',
     fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em',
   },
-  title: { margin: '0.1rem 0 0', fontSize: '1.1rem', fontWeight: 700 },
+  title: { margin: '0.1rem 0 0', fontSize: '1.1rem', fontWeight: 700, color: '#F0E8DC' },
   shareBtn: {
     display: 'flex', alignItems: 'center', gap: 5,
     padding: '0 12px', height: 34,
-    background: 'none', border: '1.5px solid #e8e8e8',
-    borderRadius: 99, cursor: 'pointer', color: '#555',
+    background: 'none', border: '1.5px solid rgba(232,160,48,0.28)',
+    borderRadius: 99, cursor: 'pointer', color: '#E8A030',
     fontSize: '0.8rem', fontWeight: 600,
     flexShrink: 0, whiteSpace: 'nowrap',
   },
   syncError: {
     padding: '0.4rem 1.25rem',
-    background: '#fff8e1', borderBottom: '1px solid #ffe58f',
-    fontSize: '0.78rem', color: '#b45309', fontWeight: 500,
+    background: 'rgba(232,160,48,0.1)', borderBottom: '1px solid rgba(232,160,48,0.18)',
+    fontSize: '0.78rem', color: '#E8A030', fontWeight: 500,
     flexShrink: 0,
+    position: 'relative', zIndex: 10,
   },
   main: {
     flex: 1, minHeight: 0, overflow: 'hidden',
@@ -207,65 +216,72 @@ const s: Record<string, React.CSSProperties> = {
   lockWarning: {
     display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' as const,
     padding: '0.5rem 1.25rem',
-    background: '#fff8e1', borderTop: '1px solid #ffe58f',
+    background: 'rgba(232,160,48,0.08)', borderTop: '1px solid rgba(232,160,48,0.15)',
     flexShrink: 0,
+    position: 'relative', zIndex: 10,
   },
   lockWarningText: {
-    flex: 1, fontSize: '0.8rem', color: '#b45309',
+    flex: 1, fontSize: '0.8rem', color: '#E8A030',
   },
   lockConfirmBtn: {
     padding: '0.3rem 0.75rem',
-    background: '#1a1a1a', color: 'white',
+    background: '#E8A030', color: '#1A0E00',
     border: 'none', borderRadius: 99,
     fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer',
     flexShrink: 0,
   },
   lockCancelBtn: {
     padding: '0.3rem 0.65rem',
-    background: 'none', color: '#888',
-    border: '1.5px solid #ddd', borderRadius: 99,
+    background: 'none', color: '#7A6A58',
+    border: '1.5px solid rgba(232,160,48,0.22)', borderRadius: 99,
     fontSize: '0.78rem', cursor: 'pointer',
     flexShrink: 0,
   },
   totalStrip: {
     display: 'flex', alignItems: 'center', gap: 8,
     padding: '0.6rem 1.25rem',
-    borderTop: '1px solid #f0f0f0', flexShrink: 0,
+    background: '#1A1410',
+    borderTop: '1px solid rgba(232,160,48,0.1)',
+    // Shadow points UP into the table zone — makes the strip "float" above it
+    boxShadow: '0 -8px 28px rgba(0,0,0,0.5)',
+    flexShrink: 0,
+    position: 'relative',
+    zIndex: 10,
   },
   totalLabel: {
     fontSize: '0.75rem', fontWeight: 700,
-    textTransform: 'uppercase', letterSpacing: '0.07em', color: '#bbb',
+    textTransform: 'uppercase', letterSpacing: '0.07em', color: '#7A6A58',
   },
   totalAmount: {
-    fontSize: '1rem', fontWeight: 700, color: '#1a1a1a', flex: 1,
+    fontSize: '1rem', fontWeight: 800, color: '#F0E8DC', flex: 1,
   },
   scrollHint: {
-    fontSize: '0.7rem', color: '#ccc', fontWeight: 500,
+    fontSize: '0.7rem', color: '#4A3A28', fontWeight: 500,
   },
   editMenuLink: {
     fontSize: '0.65rem', fontWeight: 700,
     textTransform: 'uppercase' as const, letterSpacing: '0.05em',
-    color: '#bbb', textDecoration: 'none',
+    color: '#7A6A58', textDecoration: 'none',
     padding: '2px 6px', borderRadius: 4,
-    border: '1px solid #e8e8e8',
+    border: '1px solid rgba(232,160,48,0.15)',
   },
   editTabLink: {
     fontSize: '0.7rem', fontWeight: 600,
-    color: '#bbb', textDecoration: 'none',
+    color: '#7A6A58', textDecoration: 'none',
   },
   billBtn: {
-    background: 'none', border: '1.5px solid #e8e8e8',
+    background: 'none', border: '1.5px solid rgba(232,160,48,0.25)',
     borderRadius: 99, padding: '0 9px', height: 26,
-    fontSize: '0.7rem', fontWeight: 600, color: '#555',
+    fontSize: '0.7rem', fontWeight: 600, color: '#E8A030',
     cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0,
   },
   lockBtn: {
-    background: 'none', border: '1.5px solid #e8e8e8',
+    background: 'none', border: '1.5px solid rgba(232,160,48,0.18)',
     borderRadius: 99, padding: '0 9px', height: 26,
-    fontSize: '0.7rem', fontWeight: 600, color: '#555',
+    fontSize: '0.7rem', fontWeight: 600, color: '#7A6A58',
     cursor: 'pointer', whiteSpace: 'nowrap' as const, flexShrink: 0,
   },
   lockBtnArmed: {
-    borderColor: '#f0a020', color: '#b45309',
+    borderColor: '#E8A030', color: '#E8A030',
   },
 }

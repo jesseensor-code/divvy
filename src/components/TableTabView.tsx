@@ -151,20 +151,20 @@ function PersonIcon({ x, y, name, highlighted, isDropTarget, avatarId, participa
         )}
         {/* Name */}
         <text x={x} y={cy + AVATAR_R + 14} textAnchor="middle"
-          style={{ ...labelStyle, fontSize: '11px', fontWeight: 700, fill: '#1a1a1a' }}>
+          style={{ ...labelStyle, fontSize: '11px', fontWeight: 700, fill: '#F0E8DC' }}>
           {name.length > 9 ? name.slice(0, 8) + '…' : name}
         </text>
         {/* Item count */}
         {itemCount > 0 && (
           <text x={x} y={cy + AVATAR_R + 26} textAnchor="middle"
-            style={{ ...labelStyle, fontSize: '9px', fill: '#aaa' }}>
+            style={{ ...labelStyle, fontSize: '9px', fill: '#7A6A58' }}>
             {itemCount} {itemCount === 1 ? 'item' : 'items'}
           </text>
         )}
         {/* "you" badge */}
         {isSelf && (
           <text x={x} y={cy + AVATAR_R + (itemCount > 0 ? 38 : 38)} textAnchor="middle"
-            style={{ ...labelStyle, fontSize: '9px', fontWeight: 700, fill: '#1a1a1a', letterSpacing: '0.04em' }}>
+            style={{ ...labelStyle, fontSize: '9px', fontWeight: 700, fill: '#E8A030', letterSpacing: '0.04em' }}>
             you
           </text>
         )}
@@ -173,8 +173,8 @@ function PersonIcon({ x, y, name, highlighted, isDropTarget, avatarId, participa
   }
 
   // ── Generic head + shoulders (scaled up to match AVATAR_R footprint) ──────
-  const fill   = isDropTarget ? '#1a1a1a' : highlighted ? '#555' : '#e8e8e8'
-  const stroke = isDropTarget || highlighted ? '#1a1a1a' : '#ccc'
+  const fill   = isDropTarget ? '#E8A030' : highlighted ? '#4A3020' : '#2A1E14'
+  const stroke = isDropTarget ? '#E8A030' : highlighted ? '#E8A030' : '#5A4A38'
   const HR = 19   // head radius — was 13
 
   return (
@@ -192,20 +192,20 @@ function PersonIcon({ x, y, name, highlighted, isDropTarget, avatarId, participa
       />
       {/* Name */}
       <text x={x} y={cy + AVATAR_R + 14} textAnchor="middle"
-        style={{ ...labelStyle, fontSize: '11px', fontWeight: 700, fill: '#1a1a1a' }}>
+        style={{ ...labelStyle, fontSize: '11px', fontWeight: 700, fill: '#F0E8DC' }}>
         {name.length > 9 ? name.slice(0, 8) + '…' : name}
       </text>
       {/* Item count */}
       {itemCount > 0 && (
         <text x={x} y={cy + AVATAR_R + 26} textAnchor="middle"
-          style={{ ...labelStyle, fontSize: '9px', fill: '#aaa' }}>
+          style={{ ...labelStyle, fontSize: '9px', fill: '#7A6A58' }}>
           {itemCount} {itemCount === 1 ? 'item' : 'items'}
         </text>
       )}
       {/* "you" badge */}
       {isSelf && (
         <text x={x} y={cy + AVATAR_R + 38} textAnchor="middle"
-          style={{ ...labelStyle, fontSize: '9px', fontWeight: 700, fill: '#1a1a1a', letterSpacing: '0.04em' }}>
+          style={{ ...labelStyle, fontSize: '9px', fontWeight: 700, fill: '#E8A030', letterSpacing: '0.04em' }}>
           you
         </text>
       )}
@@ -378,17 +378,17 @@ function InventoryCard({ item, selected, onTap }: {
         ...cardStyle,
         transform: CSS.Translate.toString(transform),
         opacity: isDragging ? 0.3 : 1,
-        outline: selected ? '2.5px solid #1a1a1a' : 'none',
+        outline: selected ? '2px solid #E8A030' : 'none',
         outlineOffset: '2px',
-        background: selected ? '#f0f0f0' : 'white',
+        background: selected ? 'rgba(232,160,48,0.15)' : '#1E1812',
       }}
       {...listeners} {...attributes}
       onClick={onTap}
     >
       <span style={{ fontSize: '1.1rem', lineHeight: 1, flexShrink: 0 }}>{emoji}</span>
-      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap' }}>{item.name}</span>
-      <span style={{ width: 1, height: 12, background: '#e0e0e0', flexShrink: 0 }} />
-      <span style={{ fontSize: '0.7rem', color: '#bbb', whiteSpace: 'nowrap' }}>{formatRands(item.unitPrice)}</span>
+      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#F0E8DC', whiteSpace: 'nowrap' }}>{item.name}</span>
+      <span style={{ width: 1, height: 12, background: 'rgba(232,160,48,0.2)', flexShrink: 0 }} />
+      <span style={{ fontSize: '0.7rem', color: '#7A6A58', whiteSpace: 'nowrap' }}>{formatRands(item.unitPrice)}</span>
     </div>
   )
 }
@@ -396,9 +396,10 @@ function InventoryCard({ item, selected, onTap }: {
 const cardStyle: React.CSSProperties = {
   display: 'flex', flexDirection: 'row', alignItems: 'center',
   gap: 6, padding: '7px 10px 7px 12px',
-  border: '1.5px solid #e0e0e0', borderRadius: 99,
-  background: 'white', cursor: 'grab', userSelect: 'none',
-  boxShadow: '0 1px 3px rgba(0,0,0,0.06)', flexShrink: 0,
+  border: '1px solid rgba(232,160,48,0.18)', borderRadius: 99,
+  background: '#1E1812', cursor: 'grab', userSelect: 'none',
+  boxShadow: '0 1px 4px rgba(0,0,0,0.3)', flexShrink: 0,
+  color: '#F0E8DC',
   // touch-action: none is critical for mobile
   touchAction: 'none',
   willChange: 'transform',
@@ -431,8 +432,8 @@ function EditInventoryPanel({ item, onSave, onClose }: {
   return (
     <div style={editPanelStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontWeight: 600, fontSize: '0.88rem' }}>Edit item</span>
-        <button style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '1rem' }} onClick={onClose}>✕</button>
+        <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#F0E8DC' }}>Edit item</span>
+        <button style={{ background: 'none', border: 'none', color: '#7A6A58', cursor: 'pointer', fontSize: '1rem' }} onClick={onClose}>✕</button>
       </div>
       <div style={{ display: 'flex', gap: 6 }}>
         {/* Emoji picker — single character input; mobile emoji keyboard works here */}
@@ -470,10 +471,10 @@ function EditInventoryPanel({ item, onSave, onClose }: {
 const editPanelStyle: React.CSSProperties = {
   margin: '0 1.25rem',
   padding: '0.75rem',
-  border: '1.5px solid #e8e8e8',
+  border: '1px solid rgba(232,160,48,0.14)',
   borderRadius: 12,
-  background: 'white',
-  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+  background: '#1E1812',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
 }
 
 // ─── Avatar picker modal ──────────────────────────────────────────────────────
@@ -503,7 +504,7 @@ function AvatarPickerModal({ participant, onClose }: {
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 100,
-        background: 'rgba(0,0,0,0.45)',
+        background: 'rgba(0,0,0,0.75)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '1rem',
       }}
@@ -511,20 +512,21 @@ function AvatarPickerModal({ participant, onClose }: {
     >
       {/* Card */}
       <div style={{
-        background: 'white', borderRadius: 20,
+        background: '#1E1812', borderRadius: 20,
         padding: '1.25rem 1.25rem 1rem',
         width: '100%', maxWidth: 320,
-        boxShadow: '0 16px 48px rgba(0,0,0,0.22)',
+        boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
+        border: '1px solid rgba(232,160,48,0.12)',
         display: 'flex', flexDirection: 'column', gap: 12,
       }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#1a1a1a' }}>
+          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#F0E8DC' }}>
             {participant.name}
           </span>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}
+            style={{ background: 'none', border: 'none', color: '#7A6A58', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}
           >✕</button>
         </div>
 
@@ -563,9 +565,9 @@ function AvatarPickerModal({ participant, onClose }: {
               onClick={clear}
               style={{
                 flex: 1, padding: '0.45rem',
-                background: 'none', border: '1.5px solid #e8e8e8',
+                background: 'none', border: '1px solid rgba(232,160,48,0.2)',
                 borderRadius: 10, cursor: 'pointer',
-                fontSize: '0.82rem', color: '#888',
+                fontSize: '0.82rem', color: '#7A6A58',
               }}
             >
               Remove avatar
@@ -575,9 +577,9 @@ function AvatarPickerModal({ participant, onClose }: {
             onClick={onClose}
             style={{
               flex: 1, padding: '0.45rem',
-              background: '#1a1a1a', color: 'white',
+              background: '#E8A030', color: '#1A0E00',
               border: 'none', borderRadius: 10, cursor: 'pointer',
-              fontSize: '0.82rem', fontWeight: 600,
+              fontSize: '0.82rem', fontWeight: 700,
             }}
           >
             Cancel
@@ -630,7 +632,7 @@ function AddInventoryItem({ onAdd }: { onAdd: (name: string, price: number, emoj
   if (!active) {
     return (
       <button
-        style={{ ...cardStyle, border: '1.5px dashed #ccc', color: '#bbb', background: 'none', boxShadow: 'none', cursor: 'pointer', touchAction: 'auto' }}
+        style={{ ...cardStyle, border: '1.5px dashed rgba(232,160,48,0.22)', color: '#7A6A58', background: 'none', boxShadow: 'none', cursor: 'pointer', touchAction: 'auto' }}
         onClick={() => setActive(true)}
       >
         <span style={{ fontSize: '0.9rem' }}>+</span>
@@ -894,7 +896,17 @@ export default function TableTabView() {
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
         {/* ── Inventory zone ────────────────────────────────────────────── */}
-        <div style={{ padding: '0.65rem 1.25rem 0', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
+        {/* Same #1A1410 surface as the header — together they form one elevated
+            top panel. The downward shadow makes it float above the table zone. */}
+        <div style={{
+          padding: '0.65rem 1.25rem 0.6rem',
+          background: '#1A1410',
+          borderBottom: '1px solid rgba(232,160,48,0.08)',
+          boxShadow: '0 8px 28px rgba(0,0,0,0.5)',
+          flexShrink: 0,
+          position: 'relative',
+          zIndex: 10,
+        }}>
           <div
             ref={inventoryRef}
             style={{
@@ -920,7 +932,7 @@ export default function TableTabView() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: '100%', padding: '4px 0 6px',
                 background: 'none', border: 'none', cursor: 'pointer',
-                color: '#bbb', fontSize: '0.7rem', gap: 4,
+                color: '#7A6A58', fontSize: '0.7rem', gap: 4,
               }}
               onClick={() => setInventoryExpanded(p => !p)}
             >
@@ -932,8 +944,9 @@ export default function TableTabView() {
         {/* ── Action banner ─────────────────────────────────────────────── */}
         {isItemActive && (
           <div className="pulse" style={{
-            padding: '0.45rem 1.25rem', background: '#1a1a1a', color: 'white',
+            padding: '0.45rem 1.25rem', background: '#2A1E10', color: '#F0E8DC',
             fontSize: '0.8rem', fontWeight: 600, textAlign: 'center', flexShrink: 0,
+            borderBottom: '1px solid rgba(232,160,48,0.12)',
           }}>
             {activeDragItem
               ? `Drop "${activeItemName}" onto a person or the share zone`
@@ -946,10 +959,10 @@ export default function TableTabView() {
         {shareZonePending && !isItemActive && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
-            padding: '0.5rem 1.25rem', background: '#f8f8f8',
-            borderBottom: '1px solid #ebebeb', flexShrink: 0,
+            padding: '0.5rem 1.25rem', background: '#1E1812',
+            borderBottom: '1px solid rgba(232,160,48,0.1)', flexShrink: 0,
           }}>
-            <span style={{ fontSize: '0.85rem', color: '#444', flex: 1 }}>
+            <span style={{ fontSize: '0.85rem', color: '#F0E8DC', flex: 1 }}>
               Splitting <strong>{shareZonePending.name}</strong>
               {shareZonePeople.length === 0
                 ? ' — tap people below'
@@ -957,19 +970,25 @@ export default function TableTabView() {
               }
             </span>
             {shareZonePeople.length > 0 && (
-              <button onClick={confirmShare} style={{ padding: '0.35rem 0.85rem', background: '#1a1a1a', color: 'white', border: 'none', borderRadius: 20, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600 }}>
+              <button onClick={confirmShare} style={{ padding: '0.35rem 0.85rem', background: '#E8A030', color: '#1A0E00', border: 'none', borderRadius: 20, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700 }}>
                 Confirm split
               </button>
             )}
             <button onClick={() => { setShareZonePending(null); setShareZonePeople([]) }}
-              style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '0.85rem' }}>
+              style={{ background: 'none', border: 'none', color: '#7A6A58', cursor: 'pointer', fontSize: '0.85rem' }}>
               Cancel
             </button>
           </div>
         )}
 
         {/* ── SVG table — fills remaining height ───────────────────────── */}
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0.25rem 0 0', overflow: 'hidden' }}>
+        {/* This is the "floor" — darkest layer, table zone sits between the
+            two elevated panels. The radial glow adds depth without clutter. */}
+        <div style={{
+          flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', padding: '0.25rem 0 0', overflow: 'hidden',
+          background: 'radial-gradient(ellipse 260px 220px at 50% 44%, rgba(232,160,48,0.07) 0%, transparent 100%)',
+        }}>
           <div style={{ position: 'relative', width: TABLE_W, height: tableH, flexShrink: 0 }}>
 
             <svg width={TABLE_W} height={tableH} viewBox={`0 0 ${TABLE_W} ${tableH}`}
@@ -1000,7 +1019,7 @@ export default function TableTabView() {
           </div>
 
           {participants.length === 0 && (
-            <p style={{ color: '#ccc', fontSize: '0.85rem', margin: '0.5rem 0 0', textAlign: 'center' }}>
+            <p style={{ color: '#4A3A28', fontSize: '0.85rem', margin: '0.5rem 0 0', textAlign: 'center' }}>
               Add people to see them at the table
             </p>
           )}
@@ -1020,11 +1039,11 @@ export default function TableTabView() {
 
       <DragOverlay>
         {activeDragItem && (
-          <div style={{ ...cardStyle, opacity: 0.95, boxShadow: '0 8px 24px rgba(0,0,0,0.18)', transform: 'scale(1.08)', cursor: 'grabbing' }}>
+          <div style={{ ...cardStyle, opacity: 0.95, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', transform: 'scale(1.08)', cursor: 'grabbing' }}>
             <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>{activeDragItem.emoji ?? itemEmoji(activeDragItem.name)}</span>
-            <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>{activeDragItem.name}</span>
-            <span style={{ width: 1, height: 12, background: '#e0e0e0' }} />
-            <span style={{ fontSize: '0.7rem', color: '#bbb' }}>{formatRands(activeDragItem.unitPrice)}</span>
+            <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#F0E8DC' }}>{activeDragItem.name}</span>
+            <span style={{ width: 1, height: 12, background: 'rgba(232,160,48,0.2)' }} />
+            <span style={{ fontSize: '0.7rem', color: '#7A6A58' }}>{formatRands(activeDragItem.unitPrice)}</span>
           </div>
         )}
       </DragOverlay>
@@ -1036,15 +1055,18 @@ export default function TableTabView() {
 
 
 const miniInput: React.CSSProperties = {
-  padding: '0.35rem 0.65rem', border: '1.5px solid #d0d0d0',
+  padding: '0.35rem 0.65rem',
+  background: '#140F0A',
+  border: '1px solid rgba(232,160,48,0.2)',
   borderRadius: 8, fontSize: '0.85rem', outline: 'none', width: 110,
+  color: '#F0E8DC',
 }
 const miniConfirm: React.CSSProperties = {
-  padding: '0.35rem 0.65rem', background: '#1a1a1a', color: 'white',
-  border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem',
+  padding: '0.35rem 0.65rem', background: '#E8A030', color: '#1A0E00',
+  border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
 }
 
 const addPersonBtn: React.CSSProperties = {
-  marginTop: 8, padding: '0.45rem 1rem', border: '1.5px dashed #ccc',
-  borderRadius: 20, background: 'none', color: '#aaa', cursor: 'pointer', fontSize: '0.85rem',
+  marginTop: 8, padding: '0.45rem 1rem', border: '1.5px dashed rgba(232,160,48,0.18)',
+  borderRadius: 20, background: 'none', color: '#7A6A58', cursor: 'pointer', fontSize: '0.85rem',
 }
