@@ -30,7 +30,6 @@ export default function SelfIdentifyModal() {
     selfParticipantId,
     setSelfParticipantId,
     addParticipant,
-    setParticipantAvatar,
     tab,
   } = useTab()
 
@@ -50,10 +49,10 @@ export default function SelfIdentifyModal() {
   async function handleAddNew() {
     if (!newName.trim() || submitting) return
     setSubmitting(true)
-    const participant = addParticipant(newName.trim())
-    if (pendingAvatarId !== null) {
-      setParticipantAvatar(participant.id, pendingAvatarId)
-    }
+    // Pass avatarId directly into addParticipant so it's included in the
+    // initial INSERT — avoids the race where updateParticipantAvatar's UPDATE
+    // lands before the INSERT and becomes a no-op.
+    const participant = addParticipant(newName.trim(), pendingAvatarId ?? undefined)
     setSelfParticipantId(participant.id)
   }
 

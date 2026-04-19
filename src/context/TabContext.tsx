@@ -92,9 +92,9 @@ type TabContextValue = TabState & {
   // True when a critical write has failed all retries — UI should surface this
   syncError: boolean
 
-  // Most recently received item from another device — watched by TableTabView
-  // to fire the fun toast. Not persisted to localStorage.
-  lastForeignItem: Item | null
+  // Most recently received split assignment from another device — watched by
+  // TableTabView to fire a fun toast above the correct seat. Not persisted.
+  lastForeignAssignment: { item: Item; participantId: string } | null
 
   // The participant ID this device has identified as "me" — null if not yet
   // identified or if the user is the creator (who doesn't need to self-identify).
@@ -106,8 +106,10 @@ type TabContextValue = TabState & {
   // Create a brand new tab — called from the Home screen
   createTab: (venueName: string, tabName: string, tipPercent: number, mode: 'pub' | 'restaurant') => string
 
-  // Add a participant by name — anyone can do this
-  addParticipant: (name: string) => Participant
+  // Add a participant by name (and optional avatar) — anyone can do this.
+  // avatarId is included in the initial INSERT so there's no race with a
+  // follow-up UPDATE (which could win before the INSERT lands in Supabase).
+  addParticipant: (name: string, avatarId?: number) => Participant
 
   // Set (or clear) the avatar for a participant — writes to Supabase immediately
   setParticipantAvatar: (participantId: string, avatarId: number | null) => void
@@ -209,8 +211,10 @@ const TabContext = createContext<TabContextValue | null>(null)
 export function TabProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<TabState>(() => loadState() ?? EMPTY_STATE)
 
-  // Not persisted — just for triggering the fun toast on other devices
-  const [lastForeignItem, setLastForeignItem] = useState<Item | null>(null)
+  // Not persisted — fires the fun seat toast on other devices when a split
+  // arrives from a remote participant. Carries participant_id so TableTabView
+  // can position the toast above the right seat.
+  const [lastForeignAssignment, setLastForeignAssignment] = useState<{ item: Item; participantId: string } | null>(null)
 
   // Which participant has this device identified as "me"
   const [selfParticipantId, setSelfParticipantIdState] = useState<string | null>(() => {
@@ -330,15 +334,12 @@ export function TabProvider({ children }: { children: ReactNode }) {
         payload => {
           const row = payload.new as Item & { total_price: string | number }
           const newItem: Item = { ...row, total_price: Number(row.total_price) }
-          // Check foreignness BEFORE setState — stateRef is always current
-          const isForeign = !stateRef.current.items.some(i => i.id === row.id)
           setState(s => {
             if (s.items.some(i => i.id === row.id)) return s   // already have it (our own write)
             return { ...s, items: [...s.items, newItem] }
           })
-          // setLastForeignItem must be called OUTSIDE setState — calling one setter
-          // inside another setter's updater crashes React (blank screen)
-          if (isForeign) setLastForeignItem(newItem)
+          // Toast is fired in the item_splits INSERT handler (not here) because
+          // that's where participant_id is available for precise seat positioning.
         },
       )
       .on(
@@ -380,10 +381,21 @@ export function TabProvider({ children }: { children: ReactNode }) {
         { event: 'INSERT', schema: 'public', table: 'item_splits' },
         payload => {
           const row = payload.new as ItemSplit
+          // Detect foreignness BEFORE setState — stateRef is always current here
+          const isForeignSplit = !stateRef.current.splits.some(sp => sp.id === row.id)
           setState(s => {
             if (s.splits.some(sp => sp.id === row.id)) return s  // dedup only
             return { ...s, splits: [...s.splits, row] }
           })
+          // Fire the seat toast for any split that didn't originate here.
+          // We now have participant_id so TableTabView can position it above
+          // the correct seat instead of table centre.
+          // setLastForeignAssignment must be called OUTSIDE setState (same
+          // reason as before — calling one setter inside another's updater crashes React).
+          if (isForeignSplit) {
+            const item = stateRef.current.items.find(i => i.id === row.item_id)
+            if (item) setLastForeignAssignment({ item, participantId: row.participant_id })
+          }
         },
       )
       .on(
@@ -582,11 +594,15 @@ export function TabProvider({ children }: { children: ReactNode }) {
 
   // ── addParticipant ─────────────────────────────────────────────────────────
 
-  const addParticipant = useCallback((name: string): Participant => {
+  const addParticipant = useCallback((name: string, avatarId?: number): Participant => {
     const participant: Participant = {
       id: generateId(),
       tab_id: state.tab!.id,
       name: name.trim(),
+      // Include avatar in the initial INSERT to avoid the INSERT/UPDATE race.
+      // Previously avatar was set via a separate updateParticipantAvatar call
+      // which could win the race and become a no-op (arriving before the INSERT).
+      avatar_id: avatarId,
       paid: false,
       created_at: new Date().toISOString(),
     }
@@ -787,7 +803,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
       isCreator,
       isLoadingRemote,
       syncError,
-      lastForeignItem,
+      lastForeignAssignment,
       selfParticipantId,
       setSelfParticipantId,
       createTab,

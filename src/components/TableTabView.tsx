@@ -702,7 +702,7 @@ const THREE_ROWS_PX = 120
 export default function TableTabView() {
   const { tab, venue, participants, items, splits, inventoryItems, supabaseVenueId,
           inventoryLoaded, markInventoryLoaded,
-          addInventoryItem, addItem, setSplit, lastForeignItem, selfParticipantId } = useTab()
+          addInventoryItem, addItem, setSplit, lastForeignAssignment, selfParticipantId } = useTab()
 
   // Per-participant item count — shown under each person's name
   const itemCountByParticipant: Record<string, number> = {}
@@ -763,20 +763,27 @@ export default function TableTabView() {
     setHasOverflow(el.scrollHeight > THREE_ROWS_PX + 16)
   }, [inventoryItems])
 
-  // Fire fun toast when another device adds an item.
-  // lastForeignItem is set by the realtime handler in TabContext and is never
-  // persisted, so it only triggers once per foreign insert.
-  // We read participants.length to get the current layout's cy for toast placement.
+  // Fire fun toast when another device assigns an item to a participant.
+  // lastForeignAssignment is set by the item_splits INSERT realtime handler in
+  // TabContext (not the items INSERT) so we always have participant_id available.
+  // We position the toast above the assigned person's seat; if we can't find
+  // their seat for any reason we fall back to table centre.
   const participantsLengthRef = useRef(participants.length)
   useEffect(() => { participantsLengthRef.current = participants.length }, [participants.length])
 
   useEffect(() => {
-    if (!lastForeignItem) return
-    // Show toast near the centre of the table
-    const { cy } = tableLayout(participantsLengthRef.current)
-    addToast(funToast(lastForeignItem.name), TABLE_W / 2, cy)
+    if (!lastForeignAssignment) return
+    const { item, participantId } = lastForeignAssignment
+    const pos = getSeatPos(participantId)
+    if (pos) {
+      addToast(funToast(item.name), pos.x, pos.y)
+    } else {
+      // Fallback: participant not yet in local state (rare) — show at table centre
+      const { cy } = tableLayout(participantsLengthRef.current)
+      addToast(funToast(item.name), TABLE_W / 2, cy)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastForeignItem])
+  }, [lastForeignAssignment])
 
   // Get the SVG-space seat position for a participant
   function getSeatPos(participantId: string) {
