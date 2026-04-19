@@ -32,7 +32,7 @@ import {
   upsertSplit, deleteSplit, fetchTabState,
 } from '../lib/db'
 import { supabase } from '../lib/supabase'
-import { generateId } from '../lib/utils'
+import { generateId, withRetry } from '../lib/utils'
 
 // ─── Inventory item ───────────────────────────────────────────────────────────
 // An item TYPE available to add to the tab (lives in the venue's menu pool).
@@ -88,6 +88,9 @@ type TabContextValue = TabState & {
 
   // True while bootstrapping state from Supabase (cold device load)
   isLoadingRemote: boolean
+
+  // True when a critical write has failed all retries — UI should surface this
+  syncError: boolean
 
   // Most recently received item from another device — watched by TableTabView
   // to fire the fun toast. Not persisted to localStorage.
@@ -221,6 +224,23 @@ export function TabProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.tab?.id])
 
+  // ── Sync error state ───────────────────────────────────────────────────────
+  // Set true when a critical write exhausts all retries.
+  // Cleared when the realtime channel reconnects and reconciliation succeeds.
+  const [syncError, setSyncError] = useState(false)
+
+  // Fire-and-forget wrapper: retries up to 3× with backoff, sets syncError if
+  // all attempts fail. Does NOT block local state — optimistic updates stay.
+  const syncWrite = useCallback((fn: () => Promise<void>) => {
+    withRetry(fn).then(() => {
+      // A successful write after a prior failure clears the error flag
+      setSyncError(false)
+    }).catch(err => {
+      console.error('[syncWrite] write failed after retries:', err)
+      setSyncError(true)
+    })
+  }, [])
+
   // True while doing the initial remote fetch on a cold device
   const [isLoadingRemote, setIsLoadingRemote] = useState<boolean>(() => {
     const tabId = getUrlTabId()
@@ -246,7 +266,9 @@ export function TabProvider({ children }: { children: ReactNode }) {
     if (!state.tab || !state.supabaseVenueId) return
     if (tabsWrittenRef.current.has(state.tab.id)) return
     tabsWrittenRef.current.add(state.tab.id)
-    upsertTab(state.tab, state.supabaseVenueId)
+    const tab = state.tab
+    const venueId = state.supabaseVenueId
+    syncWrite(() => upsertTab(tab, venueId))
   }, [state.tab?.id, state.supabaseVenueId])
 
   // ── Cold-load bootstrap ────────────────────────────────────────────────────
@@ -289,6 +311,10 @@ export function TabProvider({ children }: { children: ReactNode }) {
 
   const stateRef = useRef(state)
   useEffect(() => { stateRef.current = state }, [state])
+
+  // Tracks whether the realtime channel has been disconnected since last subscribe.
+  // Used by the subscribe status callback to trigger reconciliation on reconnect.
+  const wasDisconnectedRef = useRef(false)
 
   useEffect(() => {
     const tabId = state.tab?.id
@@ -427,10 +453,36 @@ export function TabProvider({ children }: { children: ReactNode }) {
         },
       )
 
-      .subscribe()
+      .subscribe((status) => {
+        // On reconnect after a drop: re-fetch the full tab state from Supabase
+        // and merge it into local state. This reconciles any writes that were
+        // rejected while offline, and picks up any events we missed.
+        if (status === 'SUBSCRIBED' && wasDisconnectedRef.current) {
+          wasDisconnectedRef.current = false
+          fetchTabState(tabId).then(remote => {
+            if (!remote) return
+            setState(s => ({
+              ...s,
+              tab: remote.tab,
+              venue: remote.venue,
+              participants: remote.participants,
+              items: remote.items,
+              splits: remote.splits,
+              supabaseVenueId: remote.tab.venue_id,
+              // Preserve session-local fields — not in DB
+              inventoryItems: s.inventoryItems,
+              inventoryLoaded: s.inventoryLoaded,
+            }))
+            setSyncError(false)
+          })
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          wasDisconnectedRef.current = true
+        }
+      })
 
     return () => { supabase.removeChannel(channel) }
-  }, [state.tab?.id])
+  }, [state.tab?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── createTab ──────────────────────────────────────────────────────────────
 
@@ -488,7 +540,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
       created_at: new Date().toISOString(),
     }
     setState(s => ({ ...s, participants: [...s.participants, participant] }))
-    upsertParticipant(participant)
+    syncWrite(() => upsertParticipant(participant))
     return participant
   }, [state.tab])
 
@@ -515,7 +567,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
         p.id === participantId ? { ...p, paid } : p
       ),
     }))
-    updateParticipantPaid(participantId, paid)
+    syncWrite(() => updateParticipantPaid(participantId, paid))
   }, [])
 
   // ── addItem ────────────────────────────────────────────────────────────────
@@ -529,8 +581,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
       created_at: new Date().toISOString(),
     }
     setState(s => ({ ...s, items: [...s.items, item] }))
-    // Both writes happen outside setState — async side effects must not live in updaters
-    upsertItem(item)
+    syncWrite(() => upsertItem(item))
     if (state.supabaseVenueId) {
       upsertMenuItem(state.supabaseVenueId, name.trim(), totalPrice, emoji)
     }
@@ -555,7 +606,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
       participant_id: participantId,
       shares,
     }
-    upsertSplit(newSplit)
+    syncWrite(() => upsertSplit(newSplit))
     setState(s => {
       const filtered = s.splits.filter(
         sp => !(sp.item_id === itemId && sp.participant_id === participantId)
@@ -573,7 +624,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
         sp => !(sp.item_id === itemId && sp.participant_id === participantId)
       ),
     }))
-    deleteSplit(itemId, participantId)
+    syncWrite(() => deleteSplit(itemId, participantId))
   }, [])
 
   // ── addInventoryItem ───────────────────────────────────────────────────────
@@ -633,7 +684,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
     patch: Partial<Pick<Item, 'name' | 'total_price'>>,
   ) => {
     const existing = state.items.find(i => i.id === id)
-    if (existing) upsertItem({ ...existing, ...patch })
+    if (existing) syncWrite(() => upsertItem({ ...existing, ...patch }))
     setState(s => ({
       ...s,
       items: s.items.map(item => item.id === id ? { ...item, ...patch } : item),
@@ -648,7 +699,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
       items: s.items.filter(item => item.id !== id),
       splits: s.splits.filter(sp => sp.item_id !== id),
     }))
-    deleteItem(id)   // FK cascade removes splits in DB too
+    syncWrite(() => deleteItem(id))  // FK cascade removes splits in DB too
   }, [])
 
   // ── setSupabaseVenueId ─────────────────────────────────────────────────────
@@ -684,6 +735,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
       ...state,
       isCreator,
       isLoadingRemote,
+      syncError,
       lastForeignItem,
       selfParticipantId,
       setSelfParticipantId,

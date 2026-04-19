@@ -74,7 +74,7 @@ export async function upsertTab(tab: Tab, supabaseVenueId: string): Promise<void
       creator_token: tab.creator_token,
       created_at: tab.created_at,
     }, { onConflict: 'id' })
-  if (error) console.error('upsertTab:', error)
+  if (error) throw error
 }
 
 /**
@@ -89,7 +89,7 @@ export async function updateTab(
     .from('tabs')
     .update(patch)
     .eq('id', tabId)
-  if (error) console.error('updateTab:', error)
+  if (error) throw error
 }
 
 // ─── Participants ─────────────────────────────────────────────────────────────
@@ -110,7 +110,7 @@ export async function upsertParticipant(participant: Participant): Promise<void>
       paid: participant.paid ?? false,
       created_at: participant.created_at,
     }, { onConflict: 'id' })
-  if (error) console.error('upsertParticipant:', error)
+  if (error) throw error
 }
 
 /**
@@ -161,7 +161,7 @@ export async function upsertItem(item: Item): Promise<void> {
       total_price: item.total_price,
       created_at: item.created_at,
     }, { onConflict: 'id' })
-  if (error) console.error('upsertItem:', error)
+  if (error) throw error
 }
 
 /**
@@ -173,7 +173,7 @@ export async function deleteItem(itemId: string): Promise<void> {
     .from('items')
     .delete()
     .eq('id', itemId)
-  if (error) console.error('deleteItem:', error)
+  if (error) throw error
 }
 
 // ─── Item splits ──────────────────────────────────────────────────────────────
@@ -192,7 +192,7 @@ export async function upsertSplit(split: ItemSplit): Promise<void> {
       participant_id: split.participant_id,
       shares: split.shares,
     }, { onConflict: 'item_id,participant_id' })
-  if (error) console.error('upsertSplit:', error)
+  if (error) throw error
 }
 
 /**
@@ -204,7 +204,7 @@ export async function deleteSplit(itemId: string, participantId: string): Promis
     .delete()
     .eq('item_id', itemId)
     .eq('participant_id', participantId)
-  if (error) console.error('deleteSplit:', error)
+  if (error) throw error
 }
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────

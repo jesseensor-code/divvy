@@ -11,7 +11,7 @@ import SelfIdentifyModal from '../components/SelfIdentifyModal'
 
 export default function Tab() {
   const { id } = useParams()
-  const { tab, venue, participants, items, splits, isCreator, isLoadingRemote, lockTab } = useTab()
+  const { tab, venue, participants, items, splits, isCreator, isLoadingRemote, syncError, lockTab } = useTab()
   const [showBill, setShowBill] = useState(false)
   // Two-step lock: first tap shows warning/confirm if there are unassigned items
   const [lockArmed, setLockArmed] = useState(false)
@@ -98,6 +98,13 @@ export default function Tab() {
             Invite
           </button>
         </div>
+
+        {/* Sync error banner — shown when writes have failed all retries */}
+        {syncError && (
+          <div style={s.syncError}>
+            ⚠ Sync issue — changes may not be visible to others. Retrying…
+          </div>
+        )}
 
         {/* TableTabView fills remaining space */}
         <div style={s.main}>
@@ -186,6 +193,12 @@ const s: Record<string, React.CSSProperties> = {
     borderRadius: 99, cursor: 'pointer', color: '#555',
     fontSize: '0.8rem', fontWeight: 600,
     flexShrink: 0, whiteSpace: 'nowrap',
+  },
+  syncError: {
+    padding: '0.4rem 1.25rem',
+    background: '#fff8e1', borderBottom: '1px solid #ffe58f',
+    fontSize: '0.78rem', color: '#b45309', fontWeight: 500,
+    flexShrink: 0,
   },
   main: {
     flex: 1, minHeight: 0, overflow: 'hidden',
