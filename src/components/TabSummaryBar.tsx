@@ -108,11 +108,11 @@ function groupCharges(charges: TabSummary['summaries'][0]['charges']) {
 const s: Record<string, React.CSSProperties> = {
   card: {
     margin: '0 1.25rem 2rem',
-    border: '1.5px solid #e8e8e8',
+    border: '1px solid rgba(232,160,48,0.12)',
     borderRadius: 14,
     overflow: 'hidden',
-    fontFamily: 'system-ui, -apple-system, sans-serif',
-    background: 'white',
+    fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
+    background: '#1A1410',
   },
   header: {
     display: 'flex',
@@ -125,20 +125,20 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     letterSpacing: '0.07em',
     textTransform: 'uppercase',
-    color: '#aaa',
+    color: '#7A6A58',
   },
   grandTotal: {
     fontSize: '1rem',
     fontWeight: 700,
-    color: '#1a1a1a',
+    color: '#F0E8DC',
   },
   divider: {
     height: 1,
-    background: '#f0f0f0',
+    background: 'rgba(232,160,48,0.08)',
   },
   rowDivider: {
     height: 1,
-    background: '#f8f8f8',
+    background: 'rgba(232,160,48,0.05)',
     margin: '0 1rem',
   },
   personRow: {
@@ -155,7 +155,7 @@ const s: Record<string, React.CSSProperties> = {
   personName: {
     fontSize: '0.92rem',
     fontWeight: 600,
-    color: '#1a1a1a',
+    color: '#F0E8DC',
   },
   personRight: {
     display: 'flex',
@@ -165,16 +165,16 @@ const s: Record<string, React.CSSProperties> = {
   personTotal: {
     fontSize: '0.92rem',
     fontWeight: 600,
-    color: '#1a1a1a',
+    color: '#E8A030',
   },
   nothing: {
     fontSize: '0.82rem',
-    color: '#ccc',
+    color: '#4A3A28',
     fontWeight: 400,
   },
   chevron: {
     fontSize: '0.65rem',
-    color: '#ccc',
+    color: '#7A6A58',
   },
   breakdown: {
     padding: '0 1rem 0.75rem 1.75rem',
@@ -186,27 +186,27 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     fontSize: '0.83rem',
-    color: '#777',
+    color: '#7A6A58',
   },
   chargeName: {},
   tipLine: {
-    color: '#bbb',
-    borderTop: '1px solid #f5f5f5',
+    color: '#4A3A28',
+    borderTop: '1px solid rgba(232,160,48,0.07)',
     paddingTop: 5,
     marginTop: 2,
   },
   totalLine: {
     fontWeight: 700,
-    color: '#1a1a1a',
+    color: '#F0E8DC',
     fontSize: '0.88rem',
   },
   warning: {
     margin: '0 1rem 0.75rem',
     padding: '0.4rem 0.75rem',
-    background: '#fff8e1',
-    border: '1px solid #ffe58f',
+    background: 'rgba(232,160,48,0.08)',
+    border: '1px solid rgba(232,160,48,0.2)',
     borderRadius: 8,
     fontSize: '0.8rem',
-    color: '#b45309',
+    color: '#E8A030',
   },
 }

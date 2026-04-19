@@ -167,33 +167,35 @@ export default function SelfIdentifyModal() {
 const s: Record<string, React.CSSProperties> = {
   backdrop: {
     position: 'fixed', inset: 0, zIndex: 200,
-    background: 'rgba(0,0,0,0.5)',
+    background: 'rgba(0,0,0,0.7)',
     display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
     padding: '0 0 0 0',
   },
   card: {
-    background: 'white',
+    background: '#1A1410',
     borderRadius: '20px 20px 0 0',
     width: '100%', maxWidth: 480,
     padding: '1.5rem 1.5rem 2rem',
-    boxShadow: '0 -8px 40px rgba(0,0,0,0.2)',
+    boxShadow: '0 -12px 48px rgba(0,0,0,0.6)',
+    borderTop: '1px solid rgba(232,160,48,0.12)',
     maxHeight: '92dvh',
     overflowY: 'auto',
     display: 'flex', flexDirection: 'column', gap: 0,
+    fontFamily: "'DM Sans', system-ui, sans-serif",
   },
   header: {
     marginBottom: '1.25rem',
   },
   venue: {
     margin: '0 0 2px', fontSize: '0.7rem', fontWeight: 600,
-    textTransform: 'uppercase', letterSpacing: '0.07em', color: '#bbb',
+    textTransform: 'uppercase', letterSpacing: '0.07em', color: '#7A6A58',
   },
   title: {
     margin: '0 0 4px', fontSize: '1.4rem', fontWeight: 800,
-    color: '#1a1a1a', fontFamily: 'system-ui, sans-serif',
+    color: '#F0E8DC', fontFamily: "'DM Sans', system-ui, sans-serif",
   },
   sub: {
-    margin: 0, fontSize: '0.88rem', color: '#888',
+    margin: 0, fontSize: '0.88rem', color: '#7A6A58',
   },
   participantList: {
     display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16,
@@ -201,8 +203,8 @@ const s: Record<string, React.CSSProperties> = {
   participantBtn: {
     display: 'flex', alignItems: 'center', gap: 12,
     padding: '10px 14px',
-    border: '1.5px solid #e8e8e8', borderRadius: 14,
-    background: 'white', cursor: 'pointer',
+    border: '1px solid rgba(232,160,48,0.15)', borderRadius: 14,
+    background: '#221C14', cursor: 'pointer',
     transition: 'border-color 0.12s, background 0.12s',
     textAlign: 'left' as const,
   },
@@ -211,47 +213,48 @@ const s: Record<string, React.CSSProperties> = {
   },
   avatarFallback: {
     width: 40, height: 40, borderRadius: '50%',
-    background: '#e8e8e8', display: 'flex',
+    background: '#2A1E14', display: 'flex',
     alignItems: 'center', justifyContent: 'center',
-    fontSize: '1rem', fontWeight: 700, color: '#555',
+    fontSize: '1rem', fontWeight: 700, color: '#E8A030',
   },
   participantName: {
-    flex: 1, fontSize: '0.95rem', fontWeight: 600, color: '#1a1a1a',
+    flex: 1, fontSize: '0.95rem', fontWeight: 600, color: '#F0E8DC',
   },
   participantArrow: {
-    fontSize: '0.85rem', color: '#ccc', flexShrink: 0,
+    fontSize: '0.85rem', color: '#7A6A58', flexShrink: 0,
   },
   divider: {
     display: 'flex', alignItems: 'center', gap: 10,
     marginBottom: 12,
   },
   dividerText: {
-    fontSize: '0.75rem', color: '#ccc',
+    fontSize: '0.75rem', color: '#4A3A28',
     whiteSpace: 'nowrap' as const, margin: '0 auto',
   },
   emptyHint: {
-    fontSize: '0.88rem', color: '#aaa', textAlign: 'center' as const,
+    fontSize: '0.88rem', color: '#7A6A58', textAlign: 'center' as const,
     margin: '0 0 16px',
   },
   newBtn: {
     width: '100%', padding: '0.75rem',
-    border: '1.5px dashed #ccc', borderRadius: 14,
+    border: '1.5px dashed rgba(232,160,48,0.2)', borderRadius: 14,
     background: 'none', cursor: 'pointer',
-    fontSize: '0.9rem', fontWeight: 600, color: '#555',
+    fontSize: '0.9rem', fontWeight: 600, color: '#7A6A58',
   },
   newForm: {
     display: 'flex', flexDirection: 'column', gap: 14,
   },
   newFormHint: {
-    margin: 0, fontSize: '0.85rem', color: '#888',
+    margin: 0, fontSize: '0.85rem', color: '#7A6A58',
   },
   avatarGrid: {
     display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6,
   },
   nameInput: {
     width: '100%', padding: '0.65rem 0.9rem',
-    border: '1.5px solid #d0d0d0', borderRadius: 10,
-    fontSize: '1rem', outline: 'none',
+    background: '#140F0A',
+    border: '1px solid rgba(232,160,48,0.2)', borderRadius: 10,
+    fontSize: '1rem', outline: 'none', color: '#F0E8DC',
     boxSizing: 'border-box' as const,
   },
   newFormActions: {
@@ -259,14 +262,14 @@ const s: Record<string, React.CSSProperties> = {
   },
   backBtn: {
     flex: 0, padding: '0.65rem 1rem',
-    background: 'none', border: '1.5px solid #e8e8e8',
+    background: 'none', border: '1px solid rgba(232,160,48,0.18)',
     borderRadius: 10, cursor: 'pointer',
-    fontSize: '0.88rem', color: '#888',
+    fontSize: '0.88rem', color: '#7A6A58',
   },
   joinBtn: {
     flex: 1, padding: '0.65rem',
-    background: '#1a1a1a', color: 'white',
+    background: '#E8A030', color: '#1A0E00',
     border: 'none', borderRadius: 10, cursor: 'pointer',
-    fontSize: '0.9rem', fontWeight: 700,
+    fontSize: '0.9rem', fontWeight: 800,
   },
 }
