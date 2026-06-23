@@ -29,7 +29,8 @@ venues ──┬──▶ menu_items   (passive menu, keyed by venue_id + name)
   (see [database.md](database.md)).
 - **`participants`** — a person on the tab. No auth, just a name + optional
   `avatar_id` (1–20, maps to `/avatars/avatar-NN.webp` in `public/`) + `paid`
-  flag. Anyone with the tab link can add one.
+  flag + `position` (seat order around the table, reassigned densely on every
+  drag-to-reorder). Anyone with the tab link can add one.
 - **`items`** — a committed line item on the tab. `total_price` is the full
   cost across everyone sharing it; *how* it's divided lives in `item_splits`.
 - **`item_splits`** — joins an item to a participant with a `shares` count.

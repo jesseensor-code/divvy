@@ -59,6 +59,7 @@ export type Participant = {
   name: string
   avatar_id?: number   // 1-20, maps to /avatars/avatar-NN.webp; null = generic icon
   paid: boolean        // has this person settled up? toggled by self or creator
+  position: number     // seat order around the table — lower sorts first
   created_at: string
 }
 

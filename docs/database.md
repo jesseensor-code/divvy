@@ -26,6 +26,7 @@ by `npm run dev` (see `.env.local` / `src/lib/supabase.ts` for which project).
 | `migration_003_paid.sql` | Added `participants.paid` (default `false`). |
 | `migration_004_menu_realtime.sql` | Enabled Realtime on `menu_items` so inventory pools sync live across devices. |
 | `migration_005_ownership.sql` | Replaced `creator_token` with real ownership: dropped `creator_token`, added `tabs.owner_id` (FK to `auth.users`), added `is_tab_owner()`/`is_venue_owner()` helper functions, replaced the fully-open RLS policies with owner-scoped ones, added a trigger restricting `participants.paid` changes to the tab owner. **Wiped all existing rows** (`truncate ... cascade`) — there was no PoC data worth migrating. |
+| `migration_006_seat_order.sql` | Added `participants.position` (seat order around the table), backfilled from `created_at` per tab. No new RLS — already covered by the existing open "authenticated update" policy on `participants`. |
 
 ## Current RLS model (post-`005`)
 

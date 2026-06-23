@@ -36,12 +36,19 @@ export default function Home() {
   // Prevents the venue useEffect re-triggering a search when we programmatically
   // set the venue name after the user selects a suggestion
   const suppressNextSearch = useRef(false)
-  const didAutoFocus = useRef(false)
   const isMounted = useRef(false)
 
   const activeTip = useCustom ? parseFloat(customTip) : tip
 
-  // Debounced venue search — empty query returns recent venues
+  // Prefetch recent venues on mount so the first tap into the field can show
+  // them instantly, with no debounce/network wait gating on a focus event.
+  useEffect(() => {
+    withRetry(() => searchVenues(''))
+      .then(results => setSuggestions(results))
+      .catch(() => setSuggestions([]))
+  }, [])
+
+  // Debounced venue search as the user types — empty query returns recent venues
   useEffect(() => {
     if (!isMounted.current) { isMounted.current = true; return }
     if (suppressNextSearch.current) { suppressNextSearch.current = false; return }
@@ -113,17 +120,7 @@ export default function Home() {
               autoFocus
               autoComplete="off"
               onChange={e => { setVenue(e.target.value); setError('') }}
-              onFocus={async () => {
-                if (!didAutoFocus.current) { didAutoFocus.current = true; return }
-                try {
-                  const results = await withRetry(() => searchVenues(venue))
-                  setSuggestions(results)
-                  setShowSuggestions(results.length > 0)
-                } catch {
-                  setSuggestions([])
-                  setShowSuggestions(false)
-                }
-              }}
+              onFocus={() => setShowSuggestions(suggestions.length > 0)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
             />
             {showSuggestions && (
