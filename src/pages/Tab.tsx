@@ -83,7 +83,9 @@ export default function Tab() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <p style={s.venue}>{venue.name}</p>
-              <Link to={`/tab/${id}/menu`} style={s.editMenuLink}>Edit menu</Link>
+              {isCreator && (
+                <Link to={`/tab/${id}/menu`} style={s.editMenuLink}>Edit menu</Link>
+              )}
             </div>
             <h1 style={s.title}>{tab.name}</h1>
           </div>

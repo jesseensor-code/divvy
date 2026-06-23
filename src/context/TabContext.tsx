@@ -32,6 +32,7 @@ import {
   upsertSplit, deleteSplit, fetchTabState,
 } from '../lib/db'
 import { supabase } from '../lib/supabase'
+import { getUserId } from '../lib/auth'
 import { generateId, withRetry } from '../lib/utils'
 
 // ─── Inventory item ───────────────────────────────────────────────────────────
@@ -157,20 +158,13 @@ type TabContextValue = TabState & {
   lockTab: () => void
 }
 
-// ─── Creator token helpers ────────────────────────────────────────────────────
-
-const CREATOR_KEY = (tabId: string) => `divvy_creator_${tabId}`
-
-function saveCreatorToken(tabId: string, token: string) {
-  localStorage.setItem(CREATOR_KEY(tabId), token)
-}
-
-function getCreatorToken(tabId: string): string | null {
-  return localStorage.getItem(CREATOR_KEY(tabId))
-}
+// ─── Ownership ────────────────────────────────────────────────────────────────
+// Ownership is determined by comparing the tab's owner_id against this
+// browser's anonymous (or, later, upgraded) Supabase Auth user ID — resolved
+// once in main.tsx before the app renders, see lib/auth.ts.
 
 function isCreatorOfTab(tab: Tab): boolean {
-  return getCreatorToken(tab.id) === tab.creator_token
+  return getUserId() === tab.owner_id
 }
 
 // ─── State persistence ────────────────────────────────────────────────────────
@@ -556,7 +550,6 @@ export function TabProvider({ children }: { children: ReactNode }) {
     mode: 'pub' | 'restaurant',
   ): string => {
     const tabId = generateId()
-    const creatorToken = generateId()
     const now = new Date().toISOString()
 
     const venue: Venue = {
@@ -572,11 +565,9 @@ export function TabProvider({ children }: { children: ReactNode }) {
       tip_percent: tipPercent,
       status: 'open',
       mode,
-      creator_token: creatorToken,
+      owner_id: getUserId()!,
       created_at: now,
     }
-
-    saveCreatorToken(tabId, creatorToken)
 
     setState({
       tab,

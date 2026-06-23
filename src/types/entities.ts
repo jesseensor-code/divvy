@@ -34,10 +34,9 @@ export type MenuItem = {
  * A tab is a shared bill session.
  * The URL slug is the tab id — the URL IS the session.
  *
- * creator_token: a UUID generated client-side at tab creation,
- * stored in the user's localStorage. Matched against this field
- * on load to determine if the current user is the creator and
- * should see creator controls (tip setting, locking).
+ * owner_id: the Supabase Auth user ID (anonymous sign-in) of whoever created
+ * the tab. Compared against the current browser's auth user ID to determine
+ * ownership — enforced server-side via RLS, not just client-side convention.
  */
 export type Tab = {
   id: string
@@ -46,7 +45,7 @@ export type Tab = {
   tip_percent: number           // e.g. 12.5 for 12.5% — set by creator
   status: 'open' | 'locked'
   mode: 'pub' | 'restaurant'   // determines default view: pub → table, restaurant → classic
-  creator_token: string         // UUID, compared against localStorage
+  owner_id: string
   created_at: string
 }
 

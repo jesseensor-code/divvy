@@ -207,13 +207,13 @@ export default function LockedTabView() {
       {/* ── Cards ────────────────────────────────────────────────────────── */}
       <div style={s.cards}>
 
-        {/* Self card first */}
+        {/* Self card first — paid status is owner-only, no self-serve toggle */}
         {selfSummary && (
           <PersonCard
             key={selfSummary.participant.id}
             ps={selfSummary}
             isSelf={true}
-            canToggle={true}
+            canToggle={isCreator}
             tipPercent={tab.tip_percent}
             onTogglePaid={() =>
               markParticipantPaid(selfSummary.participant.id, !selfSummary.participant.paid)

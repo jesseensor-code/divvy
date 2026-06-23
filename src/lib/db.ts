@@ -72,7 +72,7 @@ export async function upsertTab(tab: Tab, supabaseVenueId: string): Promise<void
       tip_percent: tab.tip_percent,
       status: tab.status,
       mode: tab.mode,
-      creator_token: tab.creator_token,
+      owner_id: tab.owner_id,
       created_at: tab.created_at,
     }, { onConflict: 'id' })
   if (error) throw error
@@ -227,7 +227,7 @@ export async function fetchTabState(tabId: string): Promise<{
   // Fetch tab + venue in one query via PostgREST embedding
   const { data: tabRow, error: tabErr } = await supabase
     .from('tabs')
-    .select('id, venue_id, name, tip_percent, status, mode, creator_token, created_at, venues(id, name, created_at)')
+    .select('id, venue_id, name, tip_percent, status, mode, owner_id, created_at, venues(id, name, created_at)')
     .eq('id', tabId)
     .maybeSingle()
   if (tabErr) { console.error('fetchTabState/tab:', tabErr); return null }
@@ -242,7 +242,7 @@ export async function fetchTabState(tabId: string): Promise<{
     tip_percent: Number(tabRow.tip_percent),
     status: tabRow.status,
     mode: tabRow.mode,
-    creator_token: tabRow.creator_token,
+    owner_id: tabRow.owner_id,
     created_at: tabRow.created_at,
   }
 

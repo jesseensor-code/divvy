@@ -148,7 +148,7 @@ function DisplayRow({ item, onEdit }: { item: InventoryItem; onEdit: () => void 
 
 export default function EditMenuPage() {
   const { id } = useParams()
-  const { venue, inventoryItems, updateInventoryItem, removeInventoryItem } = useTab()
+  const { venue, isCreator, inventoryItems, updateInventoryItem, removeInventoryItem } = useTab()
   const [editingId, setEditingId] = useState<string | null>(null)
 
   return (
@@ -164,8 +164,9 @@ export default function EditMenuPage() {
       {/* Venue label */}
       {venue && <p style={s.venueLabel}>{venue.name}</p>}
 
-      {/* List */}
-      {inventoryItems.length === 0 ? (
+      {!isCreator ? (
+        <p style={s.empty}>Only the tab owner can edit the menu.</p>
+      ) : inventoryItems.length === 0 ? (
         <p style={s.empty}>No menu items yet. Add some from the tab.</p>
       ) : (
         <div style={s.list}>
@@ -188,7 +189,7 @@ export default function EditMenuPage() {
       )}
 
       {/* Footer hint */}
-      <p style={s.hint}>Tap a row to edit. Changes apply immediately.</p>
+      {isCreator && <p style={s.hint}>Tap a row to edit. Changes apply immediately.</p>}
     </div>
   )
 }
