@@ -26,7 +26,7 @@ export async function searchVenues(query: string): Promise<Venue[]> {
     .limit(8)
   if (query.trim()) q = q.ilike('name', `%${query}%`)
   const { data, error } = await q
-  if (error) { console.error('searchVenues:', error); return [] }
+  if (error) throw error
   return data ?? []
 }
 
@@ -37,11 +37,12 @@ export async function searchVenues(query: string): Promise<Venue[]> {
 export async function upsertVenue(name: string): Promise<Venue | null> {
   const trimmed = name.trim()
   // Try to find existing first (case-insensitive)
-  const { data: existing } = await supabase
+  const { data: existing, error: lookupError } = await supabase
     .from('venues')
     .select('id, name, created_at')
     .ilike('name', trimmed)
     .maybeSingle()
+  if (lookupError) throw lookupError
   if (existing) return existing
 
   const { data, error } = await supabase
@@ -49,7 +50,7 @@ export async function upsertVenue(name: string): Promise<Venue | null> {
     .insert({ name: trimmed })
     .select('id, name, created_at')
     .single()
-  if (error) { console.error('upsertVenue:', error); return null }
+  if (error) throw error
   return data
 }
 
@@ -297,7 +298,7 @@ export async function getMenuItems(venueId: string): Promise<MenuItem[]> {
     .select('id, venue_id, name, price, emoji, type, updated_at, created_at')
     .eq('venue_id', venueId)
     .order('name')
-  if (error) { console.error('getMenuItems:', error); return [] }
+  if (error) throw error
   return data ?? []
 }
 
@@ -314,7 +315,7 @@ export async function searchMenuItems(venueId: string, query: string): Promise<M
     .ilike('name', `%${query}%`)
     .order('name')
     .limit(10)
-  if (error) { console.error('searchMenuItems:', error); return [] }
+  if (error) throw error
   return data ?? []
 }
 

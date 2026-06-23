@@ -19,7 +19,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useTab, type InventoryItem } from '../context/TabContext'
 import { formatRands, parseRands } from '../lib/currency'
 import { getMenuItems, upsertMenuItem } from '../lib/db'
-import { generateId } from '../lib/utils'
+import { generateId, withRetry } from '../lib/utils'
 import { itemEmoji, ITEM_EMOJIS } from '../lib/itemEmoji'
 import type { Participant } from '../types/entities'
 
@@ -725,6 +725,8 @@ export default function TableTabView() {
   const inventoryRef  = useRef<HTMLDivElement>(null)
   const [hasOverflow, setHasOverflow]           = useState(false)
   const [inventoryExpanded, setInventoryExpanded] = useState(false)
+  const [inventoryLoadError, setInventoryLoadError] = useState(false)
+  const [inventoryRetry, setInventoryRetry] = useState(0)
 
   // Multiple toasts can stack (rapid assignments)
   const [toasts, setToasts] = useState<SeatToast[]>([])
@@ -747,14 +749,20 @@ export default function TableTabView() {
   useEffect(() => {
     if (!supabaseVenueId || inventoryLoaded || loadStartedRef.current) return
     loadStartedRef.current = true
-    markInventoryLoaded()
-    getMenuItems(supabaseVenueId).then(menuItems => {
-      menuItems.forEach(mi => {
-        addInventoryItem(mi.name, mi.price, mi.emoji ?? undefined, mi.type ?? undefined)
+    setInventoryLoadError(false)
+    withRetry(() => getMenuItems(supabaseVenueId))
+      .then(menuItems => {
+        markInventoryLoaded()
+        menuItems.forEach(mi => {
+          addInventoryItem(mi.name, mi.price, mi.emoji ?? undefined, mi.type ?? undefined)
+        })
       })
-    })
+      .catch(() => {
+        loadStartedRef.current = false  // allow manual retry
+        setInventoryLoadError(true)
+      })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabaseVenueId, inventoryLoaded])
+  }, [supabaseVenueId, inventoryLoaded, inventoryRetry])
 
   // Detect whether inventory overflows past 3 rows.
   // scrollHeight reflects full content height even when overflow:hidden is set,
@@ -923,6 +931,18 @@ export default function TableTabView() {
                 selected={tappedItem?.id === item.id}
                 onTap={() => handleTapInventory(item)} />
             ))}
+            {inventoryLoadError && (
+              <button
+                style={{
+                  padding: '0.35rem 0.75rem', fontSize: '0.78rem', fontWeight: 600,
+                  background: 'rgba(232,80,48,0.12)', border: '1px solid rgba(232,80,48,0.3)',
+                  borderRadius: 8, color: '#E85030', cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+                onClick={() => { setInventoryLoadError(false); setInventoryRetry(n => n + 1) }}
+              >
+                ↻ Couldn't load menu — tap to retry
+              </button>
+            )}
           </div>
 
           {/* Expand / collapse arrow — only shown when there are 4+ rows */}

@@ -11,6 +11,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTab } from '../context/TabContext'
 import { searchVenues, upsertVenue } from '../lib/db'
+import { withRetry } from '../lib/utils'
 import type { Venue } from '../types/entities'
 
 const TIP_PRESETS = [10, 12.5, 15]
@@ -46,9 +47,14 @@ export default function Home() {
     if (suppressNextSearch.current) { suppressNextSearch.current = false; return }
     setSelectedVenueId(null)
     const t = setTimeout(async () => {
-      const results = await searchVenues(venue)
-      setSuggestions(results)
-      setShowSuggestions(results.length > 0)
+      try {
+        const results = await withRetry(() => searchVenues(venue))
+        setSuggestions(results)
+        setShowSuggestions(results.length > 0)
+      } catch {
+        setSuggestions([])
+        setShowSuggestions(false)
+      }
     }, 250)
     return () => clearTimeout(t)
   }, [venue])
@@ -79,7 +85,9 @@ export default function Home() {
     if (venueId) {
       setSupabaseVenueId(venueId)
     } else {
-      upsertVenue(venue).then(v => { if (v) setSupabaseVenueId(v.id) })
+      withRetry(() => upsertVenue(venue))
+        .then(v => { if (v) setSupabaseVenueId(v.id) })
+        .catch(() => console.error('upsertVenue failed after retries — menu items will not pre-populate'))
     }
   }
 
@@ -107,9 +115,14 @@ export default function Home() {
               onChange={e => { setVenue(e.target.value); setError('') }}
               onFocus={async () => {
                 if (!didAutoFocus.current) { didAutoFocus.current = true; return }
-                const results = await searchVenues(venue)
-                setSuggestions(results)
-                setShowSuggestions(results.length > 0)
+                try {
+                  const results = await withRetry(() => searchVenues(venue))
+                  setSuggestions(results)
+                  setShowSuggestions(results.length > 0)
+                } catch {
+                  setSuggestions([])
+                  setShowSuggestions(false)
+                }
               }}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
             />
