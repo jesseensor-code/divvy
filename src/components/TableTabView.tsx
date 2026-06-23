@@ -21,6 +21,7 @@ import { formatRands, parseRands } from '../lib/currency'
 import { getMenuItems, upsertMenuItem } from '../lib/db'
 import { generateId, withRetry } from '../lib/utils'
 import { itemEmoji, ITEM_EMOJIS } from '../lib/itemEmoji'
+import { itemCategory, CATEGORY_LABELS, type Category } from '../lib/itemCategory'
 import type { Participant } from '../types/entities'
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
@@ -219,10 +220,34 @@ function Seat({ participant, x, y, isDropTarget, highlighted, itemCount, isSelf,
   participant: Participant; x: number; y: number
   isDropTarget: boolean; highlighted: boolean; itemCount: number; isSelf: boolean; onTap: () => void
 }) {
-  const { setNodeRef } = useDroppable({ id: `seat-${participant.id}`, data: { participantId: participant.id } })
+  const { setNodeRef: setDropRef } = useDroppable({ id: `seat-${participant.id}`, data: { participantId: participant.id } })
+  // Dragging a seat avatar onto another seat swaps the two — see handleDragEnd's
+  // 'participant' branch. Distinct id namespace from the droppable above so
+  // dnd-kit doesn't confuse "drag this" with "drop onto this".
+  const { attributes, listeners, setNodeRef: setDragRef, transform, isDragging } = useDraggable({
+    id: `participant-drag-${participant.id}`,
+    data: { kind: 'participant', participantId: participant.id },
+  })
+
+  function setRefs(node: SVGGElement | null) {
+    setDropRef(node)
+    setDragRef(node)
+  }
 
   return (
-    <g ref={setNodeRef as unknown as React.Ref<SVGGElement>} onClick={onTap} style={{ cursor: 'pointer' }}>
+    <g
+      ref={setRefs as unknown as React.Ref<SVGGElement>}
+      onClick={onTap}
+      {...listeners} {...attributes}
+      style={{
+        cursor: 'pointer',
+        touchAction: 'none',
+        outline: 'none', // dnd-kit's attributes add tabIndex/role — suppress the native focus ring
+        WebkitTapHighlightColor: 'transparent',
+        transform: CSS.Translate.toString(transform),
+        opacity: isDragging ? 0.4 : 1,
+      }}
+    >
       {/* Generous hit target */}
       <circle cx={x} cy={y - 10} r={AVATAR_R + 14} fill="transparent" />
       <PersonIcon
@@ -542,8 +567,10 @@ function AvatarPickerModal({ participant, onClose }: {
                 onClick={() => pick(id)}
                 style={{
                   background: 'none', border: 'none', cursor: 'pointer',
+                  WebkitAppearance: 'none', WebkitTapHighlightColor: 'transparent',
+                  width: 60, height: 60, justifySelf: 'center',
                   padding: 2, borderRadius: '50%',
-                  outline: selected ? '2.5px solid #1a1a1a' : '2.5px solid transparent',
+                  outline: selected ? '2.5px solid #E8A030' : '2.5px solid transparent',
                   outlineOffset: 2,
                 }}
               >
@@ -654,44 +681,107 @@ function AddInventoryItem({ onAdd }: { onAdd: (name: string, price: number, emoj
 }
 
 // ─── Add person ───────────────────────────────────────────────────────────────
+// Tapping the trigger opens a modal to pick name + avatar together — avoids the
+// old two-step flow of a bare name input followed by a separate tap on the
+// blank avatar to open AvatarPickerModal.
 
 function AddPerson() {
-  const { addParticipant } = useTab()
-  const [active, setActive] = useState(false)
-  const [name, setName] = useState('')
-  const formRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <button style={addPersonBtn} onClick={() => setOpen(true)}>+ Add person to table</button>
+      {open && <AddPersonModal onClose={() => setOpen(false)} />}
+    </>
+  )
+}
 
-  useEffect(() => {
-    if (!active) return
-    function handleOutside(e: MouseEvent | TouchEvent) {
-      if (formRef.current && !formRef.current.contains(e.target as Node)) {
-        setActive(false)
-        setName('')
-      }
-    }
-    document.addEventListener('mousedown', handleOutside)
-    document.addEventListener('touchstart', handleOutside, { passive: true })
-    return () => {
-      document.removeEventListener('mousedown', handleOutside)
-      document.removeEventListener('touchstart', handleOutside)
-    }
-  }, [active])
+function AddPersonModal({ onClose }: { onClose: () => void }) {
+  const { addParticipant } = useTab()
+  const [name, setName] = useState('')
+  const [avatarId, setAvatarId] = useState<number | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   function submit() {
-    if (!name.trim()) return
-    addParticipant(name)
-    setName(''); setActive(false)
-  }
-
-  if (!active) {
-    return <button style={addPersonBtn} onClick={() => setActive(true)}>+ Add person to table</button>
+    if (!name.trim() || submitting) return
+    setSubmitting(true)
+    addParticipant(name.trim(), avatarId ?? undefined)
+    onClose()
   }
 
   return (
-    <div ref={formRef} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-      <input style={miniInput} placeholder="Name" value={name} onChange={e => setName(e.target.value)}
-        onKeyDown={e => e.key === 'Enter' && submit()} autoFocus />
-      <button style={miniConfirm} onClick={submit}>Add</button>
+    /* Backdrop */
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: 'rgba(0,0,0,0.75)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '1rem',
+      }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      {/* Card */}
+      <div style={{
+        background: '#1E1812', borderRadius: 20,
+        padding: '1.25rem 1.25rem 1rem',
+        width: '100%', maxWidth: 320,
+        boxShadow: '0 16px 48px rgba(0,0,0,0.6)',
+        border: '1px solid rgba(232,160,48,0.12)',
+        display: 'flex', flexDirection: 'column', gap: 12,
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#F0E8DC' }}>Add person</span>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', color: '#7A6A58', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1 }}
+          >✕</button>
+        </div>
+
+        {/* Avatar grid — 4 columns matching AvatarPickerModal layout */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          {Array.from({ length: AVATAR_COUNT }, (_, i) => i + 1).map(id => {
+            const selected = avatarId === id
+            return (
+              <button
+                key={id}
+                onClick={() => setAvatarId(selected ? null : id)}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  WebkitAppearance: 'none', WebkitTapHighlightColor: 'transparent',
+                  width: 60, height: 60, justifySelf: 'center',
+                  padding: 2, borderRadius: '50%',
+                  outline: selected ? '2.5px solid #E8A030' : '2.5px solid transparent',
+                  outlineOffset: 2,
+                }}
+              >
+                <img
+                  src={avatarUrl(id)}
+                  alt={`Avatar ${id}`}
+                  width={56} height={56}
+                  style={{ borderRadius: '50%', display: 'block' }}
+                />
+              </button>
+            )
+          })}
+        </div>
+
+        <input
+          style={{ ...miniInput, width: '100%', boxSizing: 'border-box', padding: '0.65rem 0.9rem' }}
+          placeholder="Name"
+          value={name}
+          autoFocus
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && submit()}
+        />
+
+        <button
+          style={{ ...miniConfirm, width: '100%', padding: '0.65rem', opacity: name.trim() ? 1 : 0.45 }}
+          onClick={submit}
+          disabled={!name.trim() || submitting}
+        >
+          Add to table
+        </button>
+      </div>
     </div>
   )
 }
@@ -704,7 +794,14 @@ const THREE_ROWS_PX = 120
 export default function TableTabView() {
   const { tab, venue, participants, items, splits, inventoryItems, supabaseVenueId,
           inventoryLoaded, markInventoryLoaded,
-          addInventoryItem, addItem, setSplit, lastForeignAssignment, selfParticipantId } = useTab()
+          addInventoryItem, addItem, setSplit, lastForeignAssignment, selfParticipantId,
+          reorderParticipants } = useTab()
+
+  // Seat order — sorted by position, with created_at as a tiebreaker so two
+  // concurrent adds that happen to land on the same position don't overlap.
+  const orderedParticipants = [...participants].sort((a, b) =>
+    a.position - b.position || a.created_at.localeCompare(b.created_at)
+  )
 
   // Per-participant item count — shown under each person's name
   const itemCountByParticipant: Record<string, number> = {}
@@ -727,6 +824,15 @@ export default function TableTabView() {
   const [inventoryExpanded, setInventoryExpanded] = useState(false)
   const [inventoryLoadError, setInventoryLoadError] = useState(false)
   const [inventoryRetry, setInventoryRetry] = useState(0)
+
+  // Category filter lozenges — derived from inventoryItems, no DB column.
+  const [activeCategory, setActiveCategory] = useState<Category | 'all'>('all')
+  const presentCategories = Array.from(
+    new Set(inventoryItems.map(i => itemCategory(i.name, i.type)))
+  ) as Category[]
+  const filteredInventoryItems = activeCategory === 'all'
+    ? inventoryItems
+    : inventoryItems.filter(i => itemCategory(i.name, i.type) === activeCategory)
 
   // Multiple toasts can stack (rapid assignments)
   const [toasts, setToasts] = useState<SeatToast[]>([])
@@ -771,7 +877,7 @@ export default function TableTabView() {
     const el = inventoryRef.current
     if (!el) return
     setHasOverflow(el.scrollHeight > THREE_ROWS_PX + 16)
-  }, [inventoryItems])
+  }, [filteredInventoryItems])
 
   // Fire fun toast when another device assigns an item to a participant.
   // lastForeignAssignment is set by the item_splits INSERT realtime handler in
@@ -797,10 +903,10 @@ export default function TableTabView() {
 
   // Get the SVG-space seat position for a participant
   function getSeatPos(participantId: string) {
-    const idx = participants.findIndex(p => p.id === participantId)
+    const idx = orderedParticipants.findIndex(p => p.id === participantId)
     if (idx === -1) return null
-    const { seatRadius: sr, cy } = tableLayout(participants.length)
-    return seatPosition(idx, participants.length, sr, cy)
+    const { seatRadius: sr, cy } = tableLayout(orderedParticipants.length)
+    return seatPosition(idx, orderedParticipants.length, sr, cy)
   }
 
   function addToast(message: string, x: number, y: number) {
@@ -864,14 +970,34 @@ export default function TableTabView() {
   }
 
   const handleDragStart = useCallback((e: DragStartEvent) => {
-    setActiveDragItem(e.active.data.current?.item ?? null)
     setTappedItem(null)
-    setInventoryExpanded(false) // reclaim screen space while dragging
+    if (e.active.data.current?.kind === 'participant') return // visual feedback is local to Seat
+    setActiveDragItem(e.active.data.current?.item ?? null)
   }, [])
 
   const handleDragEnd = useCallback((e: DragEndEvent) => {
+    setOverId(null)
+
+    // Dragging a seat avatar onto another seat swaps their positions.
+    if (e.active.data.current?.kind === 'participant') {
+      const fromId = e.active.data.current?.participantId as string
+      const toId = e.over?.data.current?.participantId as string | undefined
+      if (fromId && toId && toId !== fromId) {
+        const orderedIds = orderedParticipants.map(p => p.id)
+        const fromIdx = orderedIds.indexOf(fromId)
+        const toIdx = orderedIds.indexOf(toId)
+        if (fromIdx !== -1 && toIdx !== -1) {
+          const next = [...orderedIds]
+          ;[next[fromIdx], next[toIdx]] = [next[toIdx], next[fromIdx]]
+          reorderParticipants(next)
+        }
+      }
+      return
+    }
+
     const item: InventoryItem = e.active.data.current?.item
-    setActiveDragItem(null); setOverId(null)
+    setActiveDragItem(null)
+    setInventoryExpanded(false) // reclaim screen space now that the drag is done
     if (!item || !e.over) return
     if (e.over.id === 'share-zone') {
       sendToShareZone(item)
@@ -879,19 +1005,20 @@ export default function TableTabView() {
       const participantId = e.over.data.current?.participantId as string
       if (participantId) assignToPerson(item, participantId)
     }
-  }, [participants, addItem, setSplit]) // eslint-disable-line
+  }, [participants, addItem, setSplit, orderedParticipants, reorderParticipants]) // eslint-disable-line
 
   // Clean up drag state if the gesture is cancelled (finger lifts mid-air,
   // browser interrupts, etc.) — without this the ghost overlay gets stuck.
   const handleDragCancel = useCallback(() => {
     setActiveDragItem(null)
     setOverId(null)
+    setInventoryExpanded(false)
   }, [])
 
   if (!tab || !venue) return null
 
-  const { seatRadius, tableRX, tableRY, cy: tableCY, tableH } = tableLayout(participants.length)
-  const seats = participants.map((p, i) => ({ participant: p, ...seatPosition(i, participants.length, seatRadius, tableCY) }))
+  const { seatRadius, tableRX, tableRY, cy: tableCY, tableH } = tableLayout(orderedParticipants.length)
+  const seats = orderedParticipants.map((p, i) => ({ participant: p, ...seatPosition(i, orderedParticipants.length, seatRadius, tableCY) }))
   const isItemActive = !!activeDragItem || !!tappedItem
   const activeItemName = activeDragItem?.name ?? tappedItem?.name ?? ''
 
@@ -915,6 +1042,26 @@ export default function TableTabView() {
           position: 'relative',
           zIndex: 10,
         }}>
+          {/* Category filter lozenges — only worth showing once there's more than one group */}
+          {presentCategories.length > 1 && (
+            <div style={{ display: 'flex', gap: 6, marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+              {(['all', ...presentCategories] as const).map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => { setActiveCategory(cat); setInventoryExpanded(false) }}
+                  style={{
+                    padding: '0.3rem 0.7rem', borderRadius: 99, cursor: 'pointer',
+                    fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap',
+                    border: '1px solid rgba(232,160,48,0.25)',
+                    background: activeCategory === cat ? '#E8A030' : 'none',
+                    color: activeCategory === cat ? '#1A0E00' : '#7A6A58',
+                  }}
+                >
+                  {cat === 'all' ? 'All' : CATEGORY_LABELS[cat]}
+                </button>
+              ))}
+            </div>
+          )}
           <div
             ref={inventoryRef}
             style={{
@@ -926,7 +1073,7 @@ export default function TableTabView() {
           >
             {/* Add button first — always visible in row 1, never pushed below fold */}
             <AddInventoryItem onAdd={addInventoryItem} />
-            {inventoryItems.map(item => (
+            {filteredInventoryItems.map(item => (
               <InventoryCard key={item.id} item={item}
                 selected={tappedItem?.id === item.id}
                 onTap={() => handleTapInventory(item)} />

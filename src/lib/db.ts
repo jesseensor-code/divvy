@@ -109,9 +109,30 @@ export async function upsertParticipant(participant: Participant): Promise<void>
       name: participant.name,
       avatar_id: participant.avatar_id ?? null,
       paid: participant.paid ?? false,
+      position: participant.position,
       created_at: participant.created_at,
     }, { onConflict: 'id' })
   if (error) throw error
+}
+
+/**
+ * Batch-update seat order after a drag-to-reorder.
+ * Plain per-row updates, not an upsert — upsert's INSERT branch validates
+ * NOT NULL columns (tab_id, name, …) even when the row already exists and the
+ * statement will only ever take the ON CONFLICT DO UPDATE path, so a payload
+ * with just {id, position} fails that validation.
+ * Propagates to all connected devices via the realtime participants subscription.
+ */
+export async function updateParticipantPositions(
+  updates: { id: string; position: number }[],
+): Promise<void> {
+  const results = await Promise.all(
+    updates.map(({ id, position }) =>
+      supabase.from('participants').update({ position }).eq('id', id)
+    )
+  )
+  const firstError = results.find(r => r.error)?.error
+  if (firstError) throw firstError
 }
 
 /**
@@ -249,9 +270,9 @@ export async function fetchTabState(tabId: string): Promise<{
   // Fetch participants
   const { data: participantRows, error: pErr } = await supabase
     .from('participants')
-    .select('id, tab_id, name, avatar_id, paid, created_at')
+    .select('id, tab_id, name, avatar_id, paid, position, created_at')
     .eq('tab_id', tabId)
-    .order('created_at')
+    .order('position')
   if (pErr) console.error('fetchTabState/participants:', pErr)
   const participants: Participant[] = (participantRows ?? []).map(p => ({
     ...p,

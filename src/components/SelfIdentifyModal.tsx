@@ -119,8 +119,10 @@ export default function SelfIdentifyModal() {
                     onClick={() => setPendingAvatarId(selected ? null : id)}
                     style={{
                       background: 'none', border: 'none', cursor: 'pointer',
+                      WebkitAppearance: 'none', WebkitTapHighlightColor: 'transparent',
+                      width: 56, height: 56, justifySelf: 'center',
                       padding: 2, borderRadius: '50%',
-                      outline: selected ? '2.5px solid #1a1a1a' : '2.5px solid transparent',
+                      outline: selected ? '2.5px solid #E8A030' : '2.5px solid transparent',
                       outlineOffset: 2,
                     }}
                   >

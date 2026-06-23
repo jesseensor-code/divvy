@@ -28,7 +28,7 @@ import {
 import type { Item, ItemSplit, Participant, Tab, Venue } from '../types/entities'
 import {
   upsertMenuItem, deleteMenuItem, upsertParticipant, updateParticipantAvatar,
-  updateParticipantPaid, upsertTab, updateTab, upsertItem, deleteItem,
+  updateParticipantPaid, updateParticipantPositions, upsertTab, updateTab, upsertItem, deleteItem,
   upsertSplit, deleteSplit, fetchTabState,
 } from '../lib/db'
 import { supabase } from '../lib/supabase'
@@ -114,6 +114,10 @@ type TabContextValue = TabState & {
 
   // Set (or clear) the avatar for a participant — writes to Supabase immediately
   setParticipantAvatar: (participantId: string, avatarId: number | null) => void
+
+  // Reorder seats around the table — orderedIds is the full new seat order.
+  // Persists to Supabase and propagates to every connected device.
+  reorderParticipants: (orderedIds: string[]) => void
 
   // Toggle the paid flag — self-serve or creator override
   markParticipantPaid: (participantId: string, paid: boolean) => void
@@ -260,13 +264,41 @@ export function TabProvider({ children }: { children: ReactNode }) {
   // being set at the same time.
 
   const tabsWrittenRef = useRef(new Set<string>())
+  // Resolves once the tab's own row has landed in Supabase — addParticipant/
+  // addItem await this first so a participant or item INSERT can't race ahead
+  // of the tab row and hit the tab_id FK constraint. This can happen because
+  // tab creation chains two async steps (upsertVenue, then upsertTab) that a
+  // fast self-identify or "Add item" can easily outrun.
+  //
+  // The deferred is created eagerly (not inside the gated effect below) so a
+  // call that arrives before state.supabaseVenueId even exists yet still gets
+  // a promise to await — it just resolves later, once the effect catches up.
+  // A timeout fallback guards against permanent failure upstream (e.g.
+  // upsertVenue exhausting its own retries) leaving writes hung forever.
+  const tabReadyRef = useRef<{ tabId: string; promise: Promise<void>; resolve: () => void } | null>(null)
+  function ensureTabReady(tabId: string) {
+    if (tabReadyRef.current?.tabId === tabId) return tabReadyRef.current
+    let resolve!: () => void
+    const promise = new Promise<void>(r => { resolve = r })
+    setTimeout(resolve, 8000) // safety net — never block a write forever
+    tabReadyRef.current = { tabId, promise, resolve }
+    return tabReadyRef.current
+  }
+
   useEffect(() => {
     if (!state.tab || !state.supabaseVenueId) return
     if (tabsWrittenRef.current.has(state.tab.id)) return
     tabsWrittenRef.current.add(state.tab.id)
     const tab = state.tab
     const venueId = state.supabaseVenueId
-    syncWrite(() => upsertTab(tab, venueId))
+    const deferred = ensureTabReady(tab.id)
+    withRetry(() => upsertTab(tab, venueId))
+      .then(() => setSyncError(false))
+      .catch(err => {
+        console.error('[syncWrite] write failed after retries:', err)
+        setSyncError(true)
+      })
+      .finally(deferred.resolve)
   }, [state.tab?.id, state.supabaseVenueId])
 
   // ── Cold-load bootstrap ────────────────────────────────────────────────────
@@ -595,12 +627,21 @@ export function TabProvider({ children }: { children: ReactNode }) {
       // which could win the race and become a no-op (arriving before the INSERT).
       avatar_id: avatarId,
       paid: false,
+      // Seat at the end. Based on the max seen rather than array length, so
+      // two devices adding a participant at the same moment don't
+      // necessarily collide on the same position (render falls back to
+      // created_at as a tiebreaker if they still do).
+      // Reads state.participants from the outer closure — this useCallback
+      // must list it as a dep (below) or two adds in the same render cycle
+      // both see the same stale snapshot and collide on position 0.
+      position: Math.max(-1, ...state.participants.map(p => p.position)) + 1,
       created_at: new Date().toISOString(),
     }
     setState(s => ({ ...s, participants: [...s.participants, participant] }))
-    syncWrite(() => upsertParticipant(participant))
+    // Wait for the tab's own row to land first — see ensureTabReady above.
+    syncWrite(() => ensureTabReady(participant.tab_id).promise.then(() => upsertParticipant(participant)))
     return participant
-  }, [state.tab])
+  }, [state.tab, state.participants])
 
   // ── setParticipantAvatar ───────────────────────────────────────────────────
 
@@ -614,6 +655,24 @@ export function TabProvider({ children }: { children: ReactNode }) {
       ),
     }))
     updateParticipantAvatar(participantId, avatarId)
+  }, [])
+
+  // ── reorderParticipants ────────────────────────────────────────────────────
+  // orderedIds is the full new seat order (e.g. after a drag-to-swap).
+  // Positions are reassigned densely (0, 1, 2, …) from that order.
+
+  const reorderParticipants = useCallback((orderedIds: string[]) => {
+    setState(s => {
+      const byId = new Map(s.participants.map(p => [p.id, p]))
+      const reordered = orderedIds
+        .map((id, i) => {
+          const p = byId.get(id)
+          return p ? { ...p, position: i } : null
+        })
+        .filter((p): p is Participant => p !== null)
+      return { ...s, participants: reordered }
+    })
+    syncWrite(() => updateParticipantPositions(orderedIds.map((id, i) => ({ id, position: i }))))
   }, [])
 
   // ── markParticipantPaid ────────────────────────────────────────────────────
@@ -639,7 +698,8 @@ export function TabProvider({ children }: { children: ReactNode }) {
       created_at: new Date().toISOString(),
     }
     setState(s => ({ ...s, items: [...s.items, item] }))
-    syncWrite(() => upsertItem(item))
+    // Wait for the tab's own row to land first — see ensureTabReady above.
+    syncWrite(() => ensureTabReady(item.tab_id).promise.then(() => upsertItem(item)))
     if (state.supabaseVenueId) {
       upsertMenuItem(state.supabaseVenueId, name.trim(), totalPrice, emoji)
     }
@@ -800,6 +860,7 @@ export function TabProvider({ children }: { children: ReactNode }) {
       createTab,
       addParticipant,
       setParticipantAvatar,
+      reorderParticipants,
       markParticipantPaid,
       addItem,
       setSplit,
